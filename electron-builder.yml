@@ -1,0 +1,48 @@
+appId: com.ciphervault.app
+productName: CipherVault
+directories:
+  buildResources: build
+  output: dist
+files:
+  - '!**/.vscode/*'
+  - '!**/.idea/*'
+  - '!src/**/*'
+  - '!*.md'
+  - '!*.yml'
+  - '!*.yaml'
+  - 'electron-main.js'
+  - 'preload.cjs'
+  - 'package.json'
+  - 'dist/**/*'
+  - 'src/main/**/*'
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: build/icon.ico
+  # Skip code signing on Windows to avoid build issues
+  signAndEditExecutable: false
+  # Only build for current platform
+  requestedExecutionLevel: asInvoker
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  icon: build/icon.icns
+  category: public.app-category.utilities
+  # Skip code signing for development
+  identity: null
+linux:
+  target:
+    - AppImage
+    - deb
+    - rpm
+  icon: build/icon.png
+# Skip downloading unnecessary tools
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+

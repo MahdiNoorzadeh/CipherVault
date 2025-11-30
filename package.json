@@ -1,0 +1,43 @@
+{
+  "name": "ciphervault",
+  "version": "1.0.0",
+  "description": "A secure token management application for multiple projects and environments",
+  "main": "electron-main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "electron": "cross-env NODE_ENV=production electron .",
+    "electron:dev": "concurrently -k \"cross-env NODE_ENV=development vite\" \"wait-on http://localhost:5173 && cross-env NODE_ENV=development electron .\"",
+    "electron:build": "vite build && electron-builder --win",
+    "electron:build:all": "vite build && electron-builder",
+    "clean:build": "rmdir /s /q dist 2>nul || rmdir dist 2>nul || true",
+    "clean:cache": "rmdir /s /q \"%LOCALAPPDATA%\\electron-builder\\Cache\" 2>nul || echo Cache cleared"
+  },
+  "keywords": [
+    "token",
+    "management",
+    "security",
+    "electron",
+    "vue"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "keytar": "^7.9.0",
+    "realm": "^20.2.0"
+  },
+  "devDependencies": {
+    "@mdi/font": "^7.4.47",
+    "@vitejs/plugin-vue": "^6.0.2",
+    "concurrently": "^9.2.1",
+    "cross-env": "^7.0.3",
+    "electron": "^39.2.4",
+    "electron-builder": "^26.0.12",
+    "vite": "^7.2.4",
+    "vue": "^3.5.25",
+    "vuetify": "^3.11.0",
+    "wait-on": "^9.0.3"
+  }
+}

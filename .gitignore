@@ -1,0 +1,74 @@
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+
+# Build outputs
+dist/
+*.log
+
+# Build resources (keep icon files)
+!build/
+!build/*.ico
+!build/*.icns
+!build/*.png
+
+# Electron
+out/
+*.app
+*.dmg
+*.exe
+*.deb
+*.rpm
+*.AppImage
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Realm database (user data)
+*.realm
+*.realm.lock
+*.realm.management
+
+# Build icons (keep placeholders, ignore actual icon files if large)
+# Uncomment if you want to ignore actual icon files:
+# build/icon.ico
+# build/icon.icns
+# build/icon.png
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Misc
+.cache/
+*.pid
+*.seed
+*.pid.lock
+
