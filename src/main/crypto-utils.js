@@ -1,83 +1,76 @@
 import crypto from 'crypto';
 
 const ALGORITHM = 'aes-256-gcm';
+// Keep the current record format and IV length for backward compatibility.
 const IV_LENGTH = 16;
-const SALT_LENGTH = 64;
 const TAG_LENGTH = 16;
 const KEY_LENGTH = 32;
 
-/**
- * Derives a 32-byte key from the master key using PBKDF2
- * @param {string} masterKey - The master key string
- * @returns {Buffer} Derived key
- */
 function deriveKey(masterKey) {
-  // Use a fixed salt for consistency (in production, consider using a per-encryption salt stored with the data)
+  if (typeof masterKey !== 'string' || masterKey.length === 0) {
+    throw new TypeError('A master key is required');
+  }
+
+  // This derivation is retained so tokens encrypted by existing releases remain readable.
   const salt = crypto.createHash('sha256').update(masterKey).digest();
   return crypto.pbkdf2Sync(masterKey, salt, 100000, KEY_LENGTH, 'sha512');
 }
 
-/**
- * Encrypts a token value using AES-256-GCM
- * @param {string} plaintext - The token value to encrypt
- * @param {string} masterKey - The master encryption key
- * @returns {string} Encrypted value (hex encoded)
- */
+/** Encrypt a token using the existing IV:tag:ciphertext hex format. */
 export function encryptToken(plaintext, masterKey) {
-  if (!plaintext || !masterKey) {
-    throw new Error('Plaintext and master key are required');
+  if (typeof plaintext !== 'string' || plaintext.length === 0) {
+    throw new TypeError('A non-empty token value is required');
+  }
+  if (typeof masterKey !== 'string' || masterKey.length === 0) {
+    throw new TypeError('A master key is required');
   }
 
   try {
     const key = deriveKey(masterKey);
     const iv = crypto.randomBytes(IV_LENGTH);
     const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
-
-    let encrypted = cipher.update(plaintext, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
+    const encrypted = Buffer.concat([
+      cipher.update(plaintext, 'utf8'),
+      cipher.final()
+    ]);
     const tag = cipher.getAuthTag();
-
-    // Combine IV, tag, and encrypted data
-    const combined = iv.toString('hex') + ':' + tag.toString('hex') + ':' + encrypted;
-    return combined;
-  } catch (error) {
-    console.error('Encryption error:', error);
+    return `${iv.toString('hex')}:${tag.toString('hex')}:${encrypted.toString('hex')}`;
+  } catch {
+    // Do not log plaintext, key material, ciphertext, or low-level crypto details.
     throw new Error('Failed to encrypt token');
   }
 }
 
-/**
- * Decrypts a token value using AES-256-GCM
- * @param {string} encryptedData - The encrypted token value (hex encoded)
- * @param {string} masterKey - The master encryption key
- * @returns {string} Decrypted token value
- */
+/** Decrypt an existing CipherVault token record. */
 export function decryptToken(encryptedData, masterKey) {
-  if (!encryptedData || !masterKey) {
-    throw new Error('Encrypted data and master key are required');
+  if (typeof encryptedData !== 'string' || encryptedData.length === 0) {
+    throw new TypeError('Encrypted token data is required');
+  }
+  if (typeof masterKey !== 'string' || masterKey.length === 0) {
+    throw new TypeError('A master key is required');
   }
 
   try {
     const parts = encryptedData.split(':');
-    if (parts.length !== 3) {
-      throw new Error('Invalid encrypted data format');
+    if (parts.length !== 3 || parts.some((part) => !/^(?:[0-9a-fA-F]{2})*$/.test(part))) {
+      throw new Error('Invalid encrypted token format');
     }
 
-    const iv = Buffer.from(parts[0], 'hex');
-    const tag = Buffer.from(parts[1], 'hex');
-    const encrypted = parts[2];
+    const [ivHex, tagHex, encryptedHex] = parts;
+    const iv = Buffer.from(ivHex, 'hex');
+    const tag = Buffer.from(tagHex, 'hex');
+    const encrypted = Buffer.from(encryptedHex, 'hex');
 
-    const key = deriveKey(masterKey);
-    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+    if (iv.length !== IV_LENGTH || tag.length !== TAG_LENGTH || encrypted.length === 0) {
+      throw new Error('Invalid encrypted token lengths');
+    }
+
+    const decipher = crypto.createDecipheriv(ALGORITHM, deriveKey(masterKey), iv);
     decipher.setAuthTag(tag);
-
-    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-
-    return decrypted;
-  } catch (error) {
-    console.error('Decryption error:', error);
+    const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
+    return decrypted.toString('utf8');
+  } catch {
+    // Avoid logging potentially sensitive input or low-level cryptographic details.
     throw new Error('Failed to decrypt token');
   }
 }
-

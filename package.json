@@ -13,7 +13,8 @@
     "electron:build": "vite build && electron-builder --win",
     "electron:build:all": "vite build && electron-builder",
     "clean:build": "rmdir /s /q dist 2>nul || rmdir dist 2>nul || true",
-    "clean:cache": "rmdir /s /q \"%LOCALAPPDATA%\\electron-builder\\Cache\" 2>nul || echo Cache cleared"
+    "clean:cache": "rmdir /s /q \"%LOCALAPPDATA%\\electron-builder\\Cache\" 2>nul || echo Cache cleared",
+    "test": "node --test"
   },
   "keywords": [
     "token",
@@ -39,5 +40,8 @@
     "vue": "^3.5.25",
     "vuetify": "^3.11.0",
     "wait-on": "^9.0.3"
+  },
+  "allowScripts": {
+    "electron@39.8.10": true
   }
 }

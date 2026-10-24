@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // Token operations
   getTokens: (environmentId) => ipcRenderer.invoke('get-tokens', environmentId),
+  getTokenValue: (tokenId) => ipcRenderer.invoke('get-token-value', tokenId),
   createToken: (environmentId, tokenData) => ipcRenderer.invoke('create-token', environmentId, tokenData),
   updateToken: (tokenId, tokenData) => ipcRenderer.invoke('update-token', tokenId, tokenData),
   deleteToken: (tokenId) => ipcRenderer.invoke('delete-token', tokenId)

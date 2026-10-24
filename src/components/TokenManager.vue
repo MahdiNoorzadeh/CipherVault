@@ -187,23 +187,19 @@ const isTokenFormValid = computed(() => {
 });
 
 const loadEnvironment = async () => {
-  console.log('Loading environment:', { projectId: props.projectId, type: props.environmentType });
   try {
     const env = await window.electronAPI.getOrCreateEnvironment(
       props.projectId,
       props.environmentType
     );
-    console.log('Environment loaded:', env);
     if (env) {
       environmentId.value = env;
       await loadTokens();
     } else {
-      console.warn('Environment is null');
       showSnackbar('Failed to load environment', 'error');
     }
   } catch (error) {
-    console.error('Error loading environment:', error);
-    showSnackbar(`Error loading environment: ${error.message}`, 'error');
+    showSnackbar('Unable to load environment.', 'error');
   }
 };
 
@@ -212,34 +208,42 @@ const loadTokens = async () => {
   
   try {
     const loadedTokens = await window.electronAPI.getTokens(environmentId.value._id);
-    tokens.value = loadedTokens.map(token => ({
-      ...token,
-      showValue: false
-    }));
+    tokens.value = loadedTokens.map(token => ({ ...token, showValue: false, value: undefined }));
   } catch (error) {
-    console.error('Error loading tokens:', error);
     showSnackbar('Error loading tokens', 'error');
   }
 };
 
-const toggleTokenVisibility = (token) => {
-  token.showValue = !token.showValue;
+const toggleTokenVisibility = async (token) => {
+  if (token.showValue) {
+    token.showValue = false;
+    token.value = undefined;
+    return;
+  }
+
+  try {
+    const result = await window.electronAPI.getTokenValue(token._id);
+    if (!result || typeof result.value !== 'string') throw new Error('Token not found');
+    token.value = result.value;
+    token.showValue = true;
+  } catch {
+    showSnackbar('Unable to reveal token. Check keyring access.', 'error');
+  }
 };
 
 const copyToken = async (token) => {
   try {
-    await navigator.clipboard.writeText(token.value);
+    const result = await window.electronAPI.getTokenValue(token._id);
+    if (!result || typeof result.value !== 'string') throw new Error('Token not found');
+    await navigator.clipboard.writeText(result.value);
     showSnackbar('Token copied to clipboard', 'success');
-  } catch (error) {
-    console.error('Error copying token:', error);
-    showSnackbar('Error copying token', 'error');
+  } catch {
+    showSnackbar('Unable to copy token. Check keyring and clipboard permissions.', 'error');
   }
 };
 
 const openCreateDialog = () => {
-  console.log('Opening create dialog', { environmentId: environmentId.value });
   if (!environmentId.value || !environmentId.value._id) {
-    console.warn('Environment not ready, loading...');
     loadEnvironment().then(() => {
       editingToken.value = null;
       tokenForm.value = {
@@ -262,15 +266,17 @@ const openCreateDialog = () => {
   }
 };
 
-const editToken = (token) => {
-  editingToken.value = token;
-  tokenForm.value = {
-    name: token.name,
-    service: token.service,
-    value: token.value
-  };
-  showTokenValue.value = false;
-  showTokenDialog.value = true;
+const editToken = async (token) => {
+  try {
+    const result = await window.electronAPI.getTokenValue(token._id);
+    if (!result || typeof result.value !== 'string') throw new Error('Token not found');
+    editingToken.value = token;
+    tokenForm.value = { name: token.name, service: token.service, value: result.value };
+    showTokenValue.value = false;
+    showTokenDialog.value = true;
+  } catch {
+    showSnackbar('Unable to load token for editing. Check keyring access.', 'error');
+  }
 };
 
 const closeTokenDialog = () => {
@@ -285,20 +291,12 @@ const closeTokenDialog = () => {
 };
 
 const saveToken = async () => {
-  console.log('saveToken called', {
-    isValid: isTokenFormValid.value,
-    environmentId: environmentId.value,
-    formData: { ...tokenForm.value, value: '***' }
-  });
-
   if (!isTokenFormValid.value) {
-    console.warn('Form validation failed');
     showSnackbar('Please fill in all fields', 'error');
     return;
   }
 
   if (!environmentId.value || !environmentId.value._id) {
-    console.error('Environment not loaded', environmentId.value);
     showSnackbar('Environment not ready. Please wait...', 'error');
     return;
   }
@@ -311,13 +309,10 @@ const saveToken = async () => {
     };
 
     if (editingToken.value) {
-      console.log('Updating token:', editingToken.value._id);
       await window.electronAPI.updateToken(editingToken.value._id, tokenData);
       showSnackbar('Token updated successfully', 'success');
     } else {
-      console.log('Creating token in environment:', environmentId.value._id);
-      const result = await window.electronAPI.createToken(environmentId.value._id, tokenData);
-      console.log('Token created:', result);
+      await window.electronAPI.createToken(environmentId.value._id, tokenData);
       showSnackbar('Token created successfully', 'success');
     }
 
@@ -325,8 +320,7 @@ const saveToken = async () => {
     emit('tokens-updated');
     closeTokenDialog();
   } catch (error) {
-    console.error('Error saving token:', error);
-    showSnackbar(`Error saving token: ${error.message}`, 'error');
+    showSnackbar('Unable to save token. Please check the fields and try again.', 'error');
   }
 };
 
@@ -346,7 +340,6 @@ const deleteToken = async () => {
     showDeleteDialog.value = false;
     deletingToken.value = null;
   } catch (error) {
-    console.error('Error deleting token:', error);
     showSnackbar('Error deleting token', 'error');
   }
 };

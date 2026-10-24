@@ -1,5 +1,5 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import { dirname, join } from 'path';
 import { existsSync } from 'fs';
 import Realm from 'realm';
@@ -21,10 +21,24 @@ app.whenReady().then(async () => {
     // Ensure master key exists
     let masterKey = await getMasterKey();
     if (!masterKey) {
+      const existingRealmPath = join(app.getPath('userData'), 'ciphervault.realm');
+      if (existsSync(existingRealmPath)) {
+        throw new Error('The encryption key is missing from the OS keyring while a vault database exists. Refusing to generate a replacement key.');
+      }
       masterKey = crypto.randomBytes(32).toString('hex');
-      await setMasterKey(masterKey);
+      const stored = await setMasterKey(masterKey);
+      if (!stored) {
+        throw new Error('Unable to store the encryption key in the OS keyring. CipherVault will not start.');
+      }
     }
-    
+
+    // Verify keyring access before opening the vault. Never continue with an
+    // in-memory-only key, because newly encrypted data would become unrecoverable.
+    const verifiedMasterKey = await getMasterKey();
+    if (!verifiedMasterKey) {
+      throw new Error('Unable to retrieve the encryption key from the OS keyring. CipherVault will not start.');
+    }
+
     // Initialize Realm
     realmInstance = await initRealm();
     
@@ -81,7 +95,14 @@ function createWindow() {
   }
   
   mainWindow = new BrowserWindow(windowOptions);
-  
+
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  mainWindow.webContents.on('will-navigate', (event, targetUrl) => {
+    const allowedDevUrl = !app.isPackaged && targetUrl.startsWith('http://localhost:5173/');
+    const allowedPackagedUrl = targetUrl === pathToFileURL(join(__dirname, 'dist', 'index.html')).href;
+    if (!allowedDevUrl && !allowedPackagedUrl) event.preventDefault();
+  });
+
   // Show window only when ready to avoid white flash
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
@@ -218,83 +239,113 @@ ipcMain.handle('get-or-create-environment', async (event, projectId, type) => {
 });
 
 // IPC Handlers for Tokens
-ipcMain.handle('get-tokens', async (event, environmentId) => {
-  const realm = getRealmInstance();
-  const environment = realm.objectForPrimaryKey('Environment', new Realm.BSON.ObjectId(environmentId));
-  if (!environment) return [];
-  
-  const tokens = realm.objects('Token').filtered('environment._id == $0', environment._id);
-  const masterKey = await getMasterKey();
-  
-  return Array.from(tokens).map(t => ({
-    _id: t._id.toString(),
-    name: t.name,
-    service: t.service,
-    value: decryptToken(t.value, masterKey),
-    environmentId: t.environment._id.toString()
-  }));
-});
+// The renderer receives token metadata by default. Plaintext is only returned
+// for an explicit reveal/copy/edit action for one token at a time.
+function requireNonEmptyString(value, fieldName, maxLength = 200) {
+  if (typeof value !== 'string' || value.trim().length === 0 || value.trim().length > maxLength) {
+    throw new TypeError(`Invalid ${fieldName}`);
+  }
+  return value.trim();
+}
 
-ipcMain.handle('create-token', async (event, environmentId, tokenData) => {
-  const realm = getRealmInstance();
-  const environment = realm.objectForPrimaryKey('Environment', new Realm.BSON.ObjectId(environmentId));
-  if (!environment) return null;
-  
-  const masterKey = await getMasterKey();
-  const encryptedValue = encryptToken(tokenData.value, masterKey);
-  
-  let newToken;
-  realm.write(() => {
-    newToken = realm.create('Token', {
-      _id: new Realm.BSON.ObjectId(),
-      name: tokenData.name,
-      service: tokenData.service,
-      value: encryptedValue,
-      environment: environment
-    });
-  });
-  
-  return {
-    _id: newToken._id.toString(),
-    name: newToken.name,
-    service: newToken.service,
-    value: tokenData.value,
-    environmentId: newToken.environment._id.toString()
-  };
-});
+function getObjectId(id, fieldName = 'id') {
+  if (typeof id !== 'string' || !/^[0-9a-fA-F]{24}$/.test(id)) {
+    throw new TypeError(`Invalid ${fieldName}`);
+  }
+  return new Realm.BSON.ObjectId(id);
+}
 
-ipcMain.handle('update-token', async (event, tokenId, tokenData) => {
-  const realm = getRealmInstance();
-  const token = realm.objectForPrimaryKey('Token', new Realm.BSON.ObjectId(tokenId));
-  if (!token) return null;
-  
-  const masterKey = await getMasterKey();
-  const encryptedValue = encryptToken(tokenData.value, masterKey);
-  
-  realm.write(() => {
-    token.name = tokenData.name;
-    token.service = tokenData.service;
-    token.value = encryptedValue;
-  });
-  
+function toTokenMetadata(token) {
   return {
     _id: token._id.toString(),
     name: token.name,
     service: token.service,
-    value: tokenData.value,
     environmentId: token.environment._id.toString()
   };
+}
+
+async function requireMasterKey() {
+  const masterKey = await getMasterKey();
+  if (typeof masterKey !== 'string' || masterKey.length === 0) {
+    throw new Error('CipherVault could not access its encryption key. Check OS keyring access.');
+  }
+  return masterKey;
+}
+
+ipcMain.handle('get-tokens', async (event, environmentId) => {
+  const realm = getRealmInstance();
+  const environment = realm.objectForPrimaryKey('Environment', getObjectId(environmentId, 'environment ID'));
+  if (!environment) return [];
+
+  const tokens = realm.objects('Token').filtered('environment._id == $0', environment._id);
+  return Array.from(tokens).map(toTokenMetadata);
+});
+
+ipcMain.handle('get-token-value', async (event, tokenId) => {
+  const realm = getRealmInstance();
+  const token = realm.objectForPrimaryKey('Token', getObjectId(tokenId, 'token ID'));
+  if (!token) return null;
+
+  const masterKey = await requireMasterKey();
+  return { value: decryptToken(token.value, masterKey) };
+});
+
+ipcMain.handle('create-token', async (event, environmentId, tokenData) => {
+  const realm = getRealmInstance();
+  const environment = realm.objectForPrimaryKey('Environment', getObjectId(environmentId, 'environment ID'));
+  if (!environment) return null;
+  if (!tokenData || typeof tokenData !== 'object' || Array.isArray(tokenData)) {
+    throw new TypeError('Invalid token data');
+  }
+
+  const name = requireNonEmptyString(tokenData.name, 'token name');
+  const service = requireNonEmptyString(tokenData.service, 'service name');
+  const value = requireNonEmptyString(tokenData.value, 'token value', 10000);
+  const masterKey = await requireMasterKey();
+  const encryptedValue = encryptToken(value, masterKey);
+
+  let newToken;
+  realm.write(() => {
+    newToken = realm.create('Token', {
+      _id: new Realm.BSON.ObjectId(),
+      name,
+      service,
+      value: encryptedValue,
+      environment
+    });
+  });
+  return toTokenMetadata(newToken);
+});
+
+ipcMain.handle('update-token', async (event, tokenId, tokenData) => {
+  const realm = getRealmInstance();
+  const token = realm.objectForPrimaryKey('Token', getObjectId(tokenId, 'token ID'));
+  if (!token) return null;
+  if (!tokenData || typeof tokenData !== 'object' || Array.isArray(tokenData)) {
+    throw new TypeError('Invalid token data');
+  }
+
+  const name = requireNonEmptyString(tokenData.name, 'token name');
+  const service = requireNonEmptyString(tokenData.service, 'service name');
+  const value = requireNonEmptyString(tokenData.value, 'token value', 10000);
+  const masterKey = await requireMasterKey();
+  const encryptedValue = encryptToken(value, masterKey);
+
+  realm.write(() => {
+    token.name = name;
+    token.service = service;
+    token.value = encryptedValue;
+  });
+  return toTokenMetadata(token);
 });
 
 ipcMain.handle('delete-token', async (event, tokenId) => {
   const realm = getRealmInstance();
-  const token = realm.objectForPrimaryKey('Token', new Realm.BSON.ObjectId(tokenId));
+  const token = realm.objectForPrimaryKey('Token', getObjectId(tokenId, 'token ID'));
   if (!token) return false;
-  
+
   realm.write(() => {
     realm.delete(token);
   });
-  
   return true;
 });
-
