@@ -34,7 +34,7 @@
     "@vitejs/plugin-vue": "^6.0.2",
     "concurrently": "^9.2.1",
     "cross-env": "^7.0.3",
-    "electron": "^39.2.4",
+    "electron": "^45.0.0",
     "electron-builder": "^26.0.12",
     "vite": "^7.2.4",
     "vue": "^3.5.25",
