@@ -25,6 +25,27 @@
       aria-label="Search tokens by name or service"
     ></v-text-field>
 
+    <v-toolbar
+      v-if="selectedTokenIds.length > 0"
+      density="comfortable"
+      color="surface-variant"
+      class="mb-4 rounded"
+    >
+      <v-toolbar-title class="text-body-2">
+        {{ selectedTokenIds.length }} token(s) selected
+      </v-toolbar-title>
+      <v-spacer></v-spacer>
+      <v-btn
+        color="error"
+        prepend-icon="mdi-delete"
+        variant="tonal"
+        @click="showBatchDeleteDialog = true"
+      >
+        Delete selected
+      </v-btn>
+      <v-btn icon="mdi-close" variant="text" aria-label="Clear selection" @click="clearSelection"></v-btn>
+    </v-toolbar>
+
     <v-alert
       v-if="tokens.length === 0"
       type="info"
@@ -46,6 +67,16 @@
     <v-table v-else>
       <thead>
         <tr>
+          <th class="selection-column">
+            <v-checkbox
+              :model-value="allFilteredSelected"
+              :indeterminate="someFilteredSelected"
+              density="compact"
+              hide-details
+              aria-label="Select all filtered tokens"
+              @update:model-value="toggleFilteredSelection"
+            ></v-checkbox>
+          </th>
           <th>Name</th>
           <th>Service</th>
           <th>Token</th>
@@ -54,6 +85,15 @@
       </thead>
       <tbody>
         <tr v-for="token in filteredTokens" :key="token._id">
+          <td class="selection-column">
+            <v-checkbox
+              :model-value="selectedTokenIds.includes(token._id)"
+              density="compact"
+              hide-details
+              :aria-label="`Select token ${token.name}`"
+              @update:model-value="toggleTokenSelection(token._id)"
+            ></v-checkbox>
+          </td>
           <td>{{ token.name }}</td>
           <td>
             <v-chip size="small" color="primary" variant="flat">
@@ -165,6 +205,23 @@
       </v-card>
     </v-dialog>
 
+    <!-- Batch Delete Confirmation Dialog -->
+    <v-dialog v-model="showBatchDeleteDialog" max-width="500">
+      <v-card>
+        <v-card-title class="text-error">Delete selected tokens</v-card-title>
+        <v-card-text>
+          Are you sure you want to permanently delete {{ selectedTokenIds.length }} selected token(s)? This action cannot be undone.
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn variant="text" @click="showBatchDeleteDialog = false">Cancel</v-btn>
+          <v-btn color="error" :loading="batchDeleteInProgress" :disabled="batchDeleteInProgress || selectedTokenIds.length === 0" @click="deleteSelectedTokens">
+            Delete {{ selectedTokenIds.length }} token(s)
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <!-- Snackbar for notifications -->
     <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000">
       {{ snackbar.message }}
@@ -192,10 +249,32 @@ const emit = defineEmits(['tokens-updated']);
 const tokens = ref([]);
 const searchQuery = ref('');
 const searchField = ref(null);
+const selectedTokenIds = ref([]);
+const showBatchDeleteDialog = ref(false);
+const batchDeleteInProgress = ref(false);
 
 const filteredTokens = computed(() => {
   return filterTokensByQuery(tokens.value, searchQuery.value);
 });
+const allFilteredSelected = computed(() => filteredTokens.value.length > 0 &&
+  filteredTokens.value.every((token) => selectedTokenIds.value.includes(token._id)));
+const someFilteredSelected = computed(() => !allFilteredSelected.value &&
+  filteredTokens.value.some((token) => selectedTokenIds.value.includes(token._id)));
+
+const toggleTokenSelection = (tokenId) => {
+  selectedTokenIds.value = selectedTokenIds.value.includes(tokenId)
+    ? selectedTokenIds.value.filter((id) => id !== tokenId)
+    : [...selectedTokenIds.value, tokenId];
+};
+const toggleFilteredSelection = (selected) => {
+  const visibleIds = new Set(filteredTokens.value.map((token) => token._id));
+  selectedTokenIds.value = selected
+    ? [...new Set([...selectedTokenIds.value, ...visibleIds])]
+    : selectedTokenIds.value.filter((id) => !visibleIds.has(id));
+};
+const clearSelection = () => {
+  selectedTokenIds.value = [];
+};
 
 const focusSearch = () => searchField.value?.focus?.();
 const handleFocusSearchEvent = (event) => {
@@ -228,6 +307,7 @@ const loadEnvironment = async () => {
       props.environmentType
     );
     if (env) {
+      clearSelection();
       environmentId.value = env;
       await loadTokens();
     } else {
@@ -244,6 +324,8 @@ const loadTokens = async () => {
   try {
     const loadedTokens = await window.electronAPI.getTokens(environmentId.value._id);
     tokens.value = loadedTokens.map(token => ({ ...token, showValue: false, value: undefined }));
+    const availableIds = new Set(tokens.value.map((token) => token._id));
+    selectedTokenIds.value = selectedTokenIds.value.filter((id) => availableIds.has(id));
   } catch (error) {
     showSnackbar('Error loading tokens', 'error');
   }
@@ -378,6 +460,38 @@ const deleteToken = async () => {
   }
 };
 
+const deleteSelectedTokens = async () => {
+  if (batchDeleteInProgress.value || selectedTokenIds.value.length === 0) return;
+  if (!environmentId.value?._id) {
+    showSnackbar('Environment not ready. Please try again.', 'error');
+    return;
+  }
+
+  batchDeleteInProgress.value = true;
+  const idsToDelete = [...selectedTokenIds.value];
+  try {
+    const deletedCount = await window.electronAPI.deleteTokens(
+      environmentId.value._id,
+      idsToDelete
+    );
+    if (deletedCount !== idsToDelete.length) {
+      throw new Error('Batch deletion count mismatch');
+    }
+
+    clearSelection();
+    showBatchDeleteDialog.value = false;
+    await loadTokens();
+    emit('tokens-updated');
+    showSnackbar(`Successfully deleted ${deletedCount} token(s).`, 'success');
+  } catch {
+    // Refresh to reflect the authoritative database state, without exposing IPC details.
+    await loadTokens();
+    showSnackbar('Unable to delete all selected tokens. Refresh the list and try again.', 'error');
+  } finally {
+    batchDeleteInProgress.value = false;
+  }
+};
+
 const showSnackbar = (message, color = 'success') => {
   snackbar.value = { show: true, message, color };
 };
@@ -414,6 +528,11 @@ onBeforeUnmount(() => {
 /* A textarea does not support type="password"; mask its text visually instead. */
 .token-value-hidden :deep(textarea) {
   -webkit-text-security: disc;
+}
+
+.selection-column {
+  width: 52px;
+  white-space: nowrap;
 }
 </style>
 

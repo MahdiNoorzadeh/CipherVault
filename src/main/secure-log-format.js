@@ -5,6 +5,7 @@ const ALLOWED_EVENTS = new Set([
   'token.created',
   'token.updated',
   'token.deleted',
+  'token.batch_deleted',
   'token.revealed',
   'token.copied',
   'token.clipboard_cleared',
@@ -15,7 +16,7 @@ const ALLOWED_EVENTS = new Set([
 const ALLOWED_CHANNELS = new Set([
   'get-projects', 'create-project', 'update-project', 'delete-project',
   'get-environments', 'get-or-create-environment', 'get-tokens',
-  'get-token-value', 'copy-token', 'create-token', 'update-token', 'delete-token',
+  'get-token-value', 'copy-token', 'create-token', 'update-token', 'delete-token', 'batch-delete-tokens',
   'get-keyboard-shortcuts', 'save-keyboard-shortcuts'
 ]);
 

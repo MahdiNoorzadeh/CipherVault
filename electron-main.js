@@ -12,6 +12,7 @@ import { encryptToken, decryptToken } from './src/main/crypto-utils.js';
 import { writeSecureLog, logIpcFailure } from './src/main/secure-logger.js';
 import { shouldClearClipboard } from './src/main/secure-log-format.js';
 import { DEFAULT_SHORTCUTS, validateShortcuts } from './src/main/keyboard-shortcuts.js';
+import { validateBatchDeleteIds } from './src/main/batch-delete.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -508,6 +509,32 @@ handleIpc('delete-token', async (event, tokenId) => {
   });
   writeSecureLog('token.deleted', { entity: 'token', outcome: 'success' });
   return true;
+});
+
+handleIpc('batch-delete-tokens', async (event, environmentId, tokenIds) => {
+  const validatedEnvironmentId = getObjectId(environmentId, 'environment ID');
+  const validatedTokenIds = validateBatchDeleteIds(tokenIds);
+  const realm = getRealmInstance();
+  const environment = realm.objectForPrimaryKey('Environment', validatedEnvironmentId);
+
+  if (!environment) throw new TypeError('Invalid environment ID');
+
+  // Resolve and scope every record before mutating anything. A missing token or
+  // token from another environment aborts the entire operation.
+  const tokensToDelete = validatedTokenIds.map((tokenId) => {
+    const token = realm.objectForPrimaryKey('Token', getObjectId(tokenId, 'token ID'));
+    if (!token || token.environment._id.toString() !== environment._id.toString()) {
+      throw new TypeError('Invalid token IDs');
+    }
+    return token;
+  });
+
+  realm.write(() => {
+    realm.delete(tokensToDelete);
+  });
+
+  writeSecureLog('token.batch_deleted', { entity: 'token', outcome: 'success' });
+  return tokensToDelete.length;
 });
 
 

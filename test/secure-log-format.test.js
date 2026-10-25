@@ -59,3 +59,18 @@ test('keyboard shortcut settings events are logged as approved metadata only', (
   });
   assert.equal(JSON.stringify(record).includes('Ctrl+K'), false);
 });
+
+
+test('batch deletion audit event allows approved metadata only', () => {
+  const record = buildSecureLogRecord('token.batch_deleted', {
+    entity: 'token',
+    outcome: 'success',
+    tokenIds: ['must-not-appear'],
+    tokenNames: ['private name']
+  });
+  assert.equal(record.event, 'token.batch_deleted');
+  assert.equal(record.entity, 'token');
+  assert.equal(record.outcome, 'success');
+  assert.equal(JSON.stringify(record).includes('must-not-appear'), false);
+  assert.equal(JSON.stringify(record).includes('private name'), false);
+});

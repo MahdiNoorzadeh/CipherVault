@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   createToken: (environmentId, tokenData) => ipcRenderer.invoke('create-token', environmentId, tokenData),
   updateToken: (tokenId, tokenData) => ipcRenderer.invoke('update-token', tokenId, tokenData),
   deleteToken: (tokenId) => ipcRenderer.invoke('delete-token', tokenId),
+  deleteTokens: (environmentId, tokenIds) => ipcRenderer.invoke('batch-delete-tokens', environmentId, tokenIds),
 
   // Non-secret user preferences
   getKeyboardShortcuts: () => ipcRenderer.invoke('get-keyboard-shortcuts'),
