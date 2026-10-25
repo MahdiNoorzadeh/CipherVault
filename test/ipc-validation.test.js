@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {
   requireNonEmptyString,
   requireObjectIdString,
-  requireEnvironmentType
+  requireEnvironmentType,
+  requireTokenData
 } from '../src/main/ipc-validation.js';
 
 test('requireNonEmptyString trims valid strings', () => {
@@ -80,4 +81,68 @@ test('requireEnvironmentType rejects unsupported values', () => {
       message: 'Invalid environment type'
     });
   }
+});
+
+test('requireTokenData validates and trims the three supported fields', () => {
+  assert.deepEqual(
+    requireTokenData({
+      name: '  GitHub  ',
+      service: '  GitHub API  ',
+      value: '  secret-value  '
+    }),
+    {
+      name: 'GitHub',
+      service: 'GitHub API',
+      value: 'secret-value'
+    }
+  );
+});
+
+test('requireTokenData rejects invalid payload types', () => {
+  for (const value of [null, undefined, [], 'token', 123, true]) {
+    assert.throws(() => requireTokenData(value), {
+      name: 'TypeError',
+      message: 'Invalid token data'
+    });
+  }
+});
+
+test('requireTokenData rejects missing and unexpected fields', () => {
+  assert.throws(
+  () => requireTokenData({ name: 'GitHub', service: 'API' }),
+  /Invalid token data/
+  );
+
+  assert.throws(
+    () => requireTokenData({
+      name: 'GitHub',
+      service: 'API',
+      value: 'secret',
+      environmentId: 'unexpected'
+    }),
+    /Invalid token data/
+  );
+});
+
+test('requireTokenData enforces string and length limits', () => {
+  const valid = {
+    name: 'GitHub',
+    service: 'API',
+    value: 'secret'
+  };
+
+  assert.throws(
+    () => requireTokenData({ ...valid, name: ' '.repeat(201) }),
+    /Invalid token name/
+  );
+
+  assert.throws(
+    () => requireTokenData({ ...valid, value: 'x'.repeat(10001) }),
+    /Invalid token value/
+  );
+
+  assert.throws(
+    () => requireTokenData({ ...valid, service: '' }),
+    /Invalid service name/
+  );
 });

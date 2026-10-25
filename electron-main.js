@@ -1,4 +1,4 @@
-﻿import { requireNonEmptyString, requireObjectIdString, requireEnvironmentType } from './src/main/ipc-validation.js';
+﻿import { requireNonEmptyString, requireObjectIdString, requireEnvironmentType, requireTokenData } from './src/main/ipc-validation.js';
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { dirname, join, resolve } from 'path';
@@ -374,16 +374,17 @@ handleIpc('get-token-value', async (event, tokenId) => {
 });
 
 handleIpc('create-token', async (event, environmentId, tokenData) => {
-  const realm = getRealmInstance();
-  const environment = realm.objectForPrimaryKey('Environment', getObjectId(environmentId, 'environment ID'));
-  if (!environment) return null;
-  if (!tokenData || typeof tokenData !== 'object' || Array.isArray(tokenData)) {
-    throw new TypeError('Invalid token data');
-  }
+  const { name, service, value } = requireTokenData(tokenData);
+  const validatedEnvironmentId = getObjectId(environmentId, 'environment ID');
 
-  const name = requireNonEmptyString(tokenData.name, 'token name');
-  const service = requireNonEmptyString(tokenData.service, 'service name');
-  const value = requireNonEmptyString(tokenData.value, 'token value', 10000);
+  const realm = getRealmInstance();
+  const environment = realm.objectForPrimaryKey(
+    'Environment',
+    validatedEnvironmentId
+  );
+
+  if (!environment) return null;
+
   const masterKey = await requireMasterKey();
   const encryptedValue = encryptToken(value, masterKey);
 
@@ -397,20 +398,19 @@ handleIpc('create-token', async (event, environmentId, tokenData) => {
       environment
     });
   });
+
   return toTokenMetadata(newToken);
 });
 
 handleIpc('update-token', async (event, tokenId, tokenData) => {
-  const realm = getRealmInstance();
-  const token = realm.objectForPrimaryKey('Token', getObjectId(tokenId, 'token ID'));
-  if (!token) return null;
-  if (!tokenData || typeof tokenData !== 'object' || Array.isArray(tokenData)) {
-    throw new TypeError('Invalid token data');
-  }
+  const { name, service, value } = requireTokenData(tokenData);
+  const validatedTokenId = getObjectId(tokenId, 'token ID');
 
-  const name = requireNonEmptyString(tokenData.name, 'token name');
-  const service = requireNonEmptyString(tokenData.service, 'service name');
-  const value = requireNonEmptyString(tokenData.value, 'token value', 10000);
+  const realm = getRealmInstance();
+  const token = realm.objectForPrimaryKey('Token', validatedTokenId);
+
+  if (!token) return null;
+
   const masterKey = await requireMasterKey();
   const encryptedValue = encryptToken(value, masterKey);
 
@@ -419,6 +419,7 @@ handleIpc('update-token', async (event, tokenId, tokenData) => {
     token.service = service;
     token.value = encryptedValue;
   });
+
   return toTokenMetadata(token);
 });
 

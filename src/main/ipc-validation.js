@@ -25,3 +25,24 @@ export function requireEnvironmentType(value) {
 
   return value;
 }
+
+export function requireTokenData(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new TypeError('Invalid token data');
+  }
+
+  const allowedFields = ['name', 'service', 'value'];
+
+  if (
+    Object.keys(value).length !== allowedFields.length ||
+    Object.keys(value).some((key) => !allowedFields.includes(key))
+  ) {
+    throw new TypeError('Invalid token data');
+  }
+
+  return {
+    name: requireNonEmptyString(value.name, 'token name'),
+    service: requireNonEmptyString(value.service, 'service name'),
+    value: requireNonEmptyString(value.value, 'token value', 10000)
+  };
+}
