@@ -1,3 +1,4 @@
+﻿import { requireNonEmptyString, requireObjectIdString, requireEnvironmentType } from './src/main/ipc-validation.js';
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { dirname, join, resolve } from 'path';
@@ -333,26 +334,8 @@ handleIpc('get-or-create-environment', async (event, projectId, type) => {
 // IPC Handlers for Tokens
 // The renderer receives token metadata by default. Plaintext is only returned
 // for an explicit reveal/copy/edit action for one token at a time.
-function requireNonEmptyString(value, fieldName, maxLength = 200) {
-  if (typeof value !== 'string' || value.trim().length === 0 || value.trim().length > maxLength) {
-    throw new TypeError(`Invalid ${fieldName}`);
-  }
-  return value.trim();
-}
-
 function getObjectId(id, fieldName = 'id') {
-  if (typeof id !== 'string' || !/^[0-9a-fA-F]{24}$/.test(id)) {
-    throw new TypeError(`Invalid ${fieldName}`);
-  }
-  return new Realm.BSON.ObjectId(id);
-}
-
-function requireEnvironmentType(value) {
-  if (value !== 'Production' && value !== 'Development') {
-    throw new TypeError('Invalid environment type');
-  }
-
-  return value;
+  return new Realm.BSON.ObjectId(requireObjectIdString(id, fieldName));
 }
 
 function toTokenMetadata(token) {
