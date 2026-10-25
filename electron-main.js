@@ -278,6 +278,8 @@ handleIpc('delete-project', async (event, id) => {
 });
 
 // IPC Handlers for Environments
+
+// IPC Handlers for Environments
 handleIpc('get-environments', async (event, projectId) => {
   const id = getObjectId(projectId, 'project ID');
   const realm = getRealmInstance();
@@ -295,25 +297,6 @@ handleIpc('get-environments', async (event, projectId) => {
     projectId: environment.project._id.toString()
   }));
 });
-
-handleIpc('get-environments', async (event, projectId) => {
-  const id = getObjectId(projectId, 'project ID');
-  const realm = getRealmInstance();
-  const project = realm.objectForPrimaryKey('Project', id);
-
-  if (!project) return [];
-
-  const environments = realm
-    .objects('Environment')
-    .filtered('project._id == $0', project._id);
-
-  return Array.from(environments).map((environment) => ({
-    _id: environment._id.toString(),
-    type: environment.type,
-    projectId: environment.project._id.toString()
-  }));
-});
-
 handleIpc('get-or-create-environment', async (event, projectId, type) => {
   const id = getObjectId(projectId, 'project ID');
   const environmentType = requireEnvironmentType(type);
