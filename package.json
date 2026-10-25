@@ -42,9 +42,9 @@
     "wait-on": "^9.0.3"
   },
   "allowScripts": {
-    "electron@39.8.10": true,
     "esbuild@0.28.2": true,
     "keytar@7.9.0": true,
-    "realm@20.2.0": true
+    "realm@20.2.0": true,
+    "electron@45.0.0": true
   }
 }
