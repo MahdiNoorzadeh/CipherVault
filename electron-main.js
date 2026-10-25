@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { fileURLToPath, pathToFileURL } from 'url';
-import { dirname, join } from 'path';
+import { dirname, join, resolve } from 'path';
 import { existsSync } from 'fs';
 import Realm from 'realm';
 import keytar from 'keytar';
@@ -14,6 +14,60 @@ const __dirname = dirname(__filename);
 
 let mainWindow;
 let realmInstance;
+
+
+function assertTrustedIpcSender(event) {
+  const frame = event.senderFrame;
+
+  // Only accept IPC from the main application window and its main frame.
+  if (
+    !mainWindow ||
+    event.sender !== mainWindow.webContents ||
+    !frame ||
+    frame !== event.sender.mainFrame
+  ) {
+    throw new Error('Unauthorized IPC sender');
+  }
+
+  let senderUrl;
+
+  try {
+    senderUrl = new URL(frame.url);
+  } catch {
+    throw new Error('Invalid IPC sender URL');
+  }
+
+  const isDev = !app.isPackaged ||
+    process.env.NODE_ENV === 'development';
+
+  if (isDev) {
+    // Allow only the local Vite development server.
+    if (
+      senderUrl.protocol !== 'http:' ||
+      senderUrl.hostname !== 'localhost' ||
+      senderUrl.port !== '5173'
+    ) {
+      throw new Error('Unauthorized IPC sender URL');
+    }
+
+    return;
+  }
+
+  // In production, allow only the packaged renderer entry point.
+  if (
+    senderUrl.protocol !== 'file:' ||
+    fileURLToPath(senderUrl) !== resolve(__dirname, 'dist', 'index.html')
+  ) {
+    throw new Error('Unauthorized IPC sender URL');
+  }
+}
+
+function handleIpc(channel, handler) {
+  ipcMain.handle(channel, (event, ...args) => {
+    assertTrustedIpcSender(event);
+    return handler(event, ...args);
+  });
+}
 
 // Initialize Realm and master key on app startup
 app.whenReady().then(async () => {
@@ -77,6 +131,7 @@ function createWindow() {
       preload: join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true,
+      sandbox: true,
       // Memory optimizations
       enableRemoteModule: false,
       spellcheck: false, // Disable spellcheck to save memory
@@ -151,13 +206,13 @@ app.on('activate', () => {
 });
 
 // IPC Handlers for Projects
-ipcMain.handle('get-projects', async () => {
+handleIpc('get-projects', async () => {
   const realm = getRealmInstance();
   const projects = realm.objects('Project');
   return Array.from(projects).map(p => ({ _id: p._id.toString(), name: p.name }));
 });
 
-ipcMain.handle('create-project', async (event, name) => {
+handleIpc('create-project', async (event, name) => {
   const realm = getRealmInstance();
   realm.write(() => {
     realm.create('Project', {
@@ -169,7 +224,7 @@ ipcMain.handle('create-project', async (event, name) => {
   return Array.from(projects).map(p => ({ _id: p._id.toString(), name: p.name }));
 });
 
-ipcMain.handle('update-project', async (event, id, name) => {
+handleIpc('update-project', async (event, id, name) => {
   const realm = getRealmInstance();
   const project = realm.objectForPrimaryKey('Project', new Realm.BSON.ObjectId(id));
   if (project) {
@@ -181,7 +236,7 @@ ipcMain.handle('update-project', async (event, id, name) => {
   return null;
 });
 
-ipcMain.handle('delete-project', async (event, id) => {
+handleIpc('delete-project', async (event, id) => {
   const realm = getRealmInstance();
   const project = realm.objectForPrimaryKey('Project', new Realm.BSON.ObjectId(id));
   if (project) {
@@ -201,7 +256,7 @@ ipcMain.handle('delete-project', async (event, id) => {
 });
 
 // IPC Handlers for Environments
-ipcMain.handle('get-environments', async (event, projectId) => {
+handleIpc('get-environments', async (event, projectId) => {
   const realm = getRealmInstance();
   const project = realm.objectForPrimaryKey('Project', new Realm.BSON.ObjectId(projectId));
   if (!project) return [];
@@ -214,7 +269,7 @@ ipcMain.handle('get-environments', async (event, projectId) => {
   }));
 });
 
-ipcMain.handle('get-or-create-environment', async (event, projectId, type) => {
+handleIpc('get-or-create-environment', async (event, projectId, type) => {
   const realm = getRealmInstance();
   const project = realm.objectForPrimaryKey('Project', new Realm.BSON.ObjectId(projectId));
   if (!project) return null;
@@ -272,7 +327,7 @@ async function requireMasterKey() {
   return masterKey;
 }
 
-ipcMain.handle('get-tokens', async (event, environmentId) => {
+handleIpc('get-tokens', async (event, environmentId) => {
   const realm = getRealmInstance();
   const environment = realm.objectForPrimaryKey('Environment', getObjectId(environmentId, 'environment ID'));
   if (!environment) return [];
@@ -281,7 +336,7 @@ ipcMain.handle('get-tokens', async (event, environmentId) => {
   return Array.from(tokens).map(toTokenMetadata);
 });
 
-ipcMain.handle('get-token-value', async (event, tokenId) => {
+handleIpc('get-token-value', async (event, tokenId) => {
   const realm = getRealmInstance();
   const token = realm.objectForPrimaryKey('Token', getObjectId(tokenId, 'token ID'));
   if (!token) return null;
@@ -290,7 +345,7 @@ ipcMain.handle('get-token-value', async (event, tokenId) => {
   return { value: decryptToken(token.value, masterKey) };
 });
 
-ipcMain.handle('create-token', async (event, environmentId, tokenData) => {
+handleIpc('create-token', async (event, environmentId, tokenData) => {
   const realm = getRealmInstance();
   const environment = realm.objectForPrimaryKey('Environment', getObjectId(environmentId, 'environment ID'));
   if (!environment) return null;
@@ -317,7 +372,7 @@ ipcMain.handle('create-token', async (event, environmentId, tokenData) => {
   return toTokenMetadata(newToken);
 });
 
-ipcMain.handle('update-token', async (event, tokenId, tokenData) => {
+handleIpc('update-token', async (event, tokenId, tokenData) => {
   const realm = getRealmInstance();
   const token = realm.objectForPrimaryKey('Token', getObjectId(tokenId, 'token ID'));
   if (!token) return null;
@@ -339,7 +394,7 @@ ipcMain.handle('update-token', async (event, tokenId, tokenData) => {
   return toTokenMetadata(token);
 });
 
-ipcMain.handle('delete-token', async (event, tokenId) => {
+handleIpc('delete-token', async (event, tokenId) => {
   const realm = getRealmInstance();
   const token = realm.objectForPrimaryKey('Token', getObjectId(tokenId, 'token ID'));
   if (!token) return false;
