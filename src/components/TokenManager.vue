@@ -84,7 +84,14 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-for="token in filteredTokens" :key="token._id">
+        <tr
+          v-for="token in filteredTokens"
+          :key="token._id"
+          tabindex="0"
+          :aria-label="`Token ${token.name}`"
+          @contextmenu.prevent="openTokenContextMenu($event, token)"
+          @keydown="handleTokenRowKeydown($event, token)"
+        >
           <td class="selection-column">
             <v-checkbox
               :model-value="selectedTokenIds.includes(token._id)"
@@ -140,6 +147,55 @@
         </tr>
       </tbody>
     </v-table>
+
+    <!-- Accessible token context menu; actions reuse existing secure handlers. -->
+    <v-card
+      v-if="contextMenuOpen && contextMenuToken"
+      ref="contextMenuElement"
+      class="token-context-menu"
+      :style="{ left: `${contextMenuPosition.x}px`, top: `${contextMenuPosition.y}px` }"
+      role="menu"
+      :aria-label="`Actions for ${contextMenuToken.name}`"
+      @keydown="handleContextMenuKeydown"
+      @click.stop
+    >
+      <v-list density="compact" role="none" nav>
+        <v-list-item
+          role="menuitem"
+          tabindex="0"
+          :prepend-icon="contextMenuToken.showValue ? 'mdi-eye-off' : 'mdi-eye'"
+          @click="runContextMenuAction((token) => toggleTokenVisibility(token))"
+        >
+          {{ contextMenuToken.showValue ? 'Hide token' : 'Reveal token' }}
+        </v-list-item>
+        <v-list-item
+          role="menuitem"
+          tabindex="0"
+          prepend-icon="mdi-content-copy"
+          @click="runContextMenuAction((token) => copyToken(token))"
+        >
+          Copy token
+        </v-list-item>
+        <v-list-item
+          role="menuitem"
+          tabindex="0"
+          prepend-icon="mdi-pencil"
+          @click="runContextMenuAction((token) => editToken(token))"
+        >
+          Edit token
+        </v-list-item>
+        <v-divider></v-divider>
+        <v-list-item
+          role="menuitem"
+          tabindex="0"
+          prepend-icon="mdi-delete"
+          class="text-error"
+          @click="runContextMenuAction((token) => confirmDelete(token))"
+        >
+          Delete token
+        </v-list-item>
+      </v-list>
+    </v-card>
 
     <!-- Create/Edit Token Dialog -->
     <v-dialog v-model="showTokenDialog" max-width="600">
@@ -230,7 +286,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
+import { ref, computed, nextTick, onMounted, onBeforeUnmount, watch } from 'vue';
 import { filterTokensByQuery } from '../main/token-search.js';
 
 const props = defineProps({
@@ -252,6 +308,13 @@ const searchField = ref(null);
 const selectedTokenIds = ref([]);
 const showBatchDeleteDialog = ref(false);
 const batchDeleteInProgress = ref(false);
+const contextMenuOpen = ref(false);
+const contextMenuToken = ref(null);
+const contextMenuElement = ref(null);
+const contextMenuRow = ref(null);
+const contextMenuPosition = ref({ x: 0, y: 0 });
+const CONTEXT_MENU_WIDTH = 220;
+const CONTEXT_MENU_HEIGHT = 210;
 
 const filteredTokens = computed(() => {
   return filterTokensByQuery(tokens.value, searchQuery.value);
@@ -274,6 +337,70 @@ const toggleFilteredSelection = (selected) => {
 };
 const clearSelection = () => {
   selectedTokenIds.value = [];
+};
+
+const getContextMenuItems = () => {
+  const root = contextMenuElement.value?.$el ?? contextMenuElement.value;
+  return root?.querySelectorAll?.('[role=\"menuitem\"]') ?? [];
+};
+
+const openTokenContextMenu = async (event, token, keyboard = false) => {
+  contextMenuToken.value = token;
+  contextMenuRow.value = event.currentTarget;
+  const rect = event.currentTarget.getBoundingClientRect();
+  const requestedX = keyboard ? rect.left : event.clientX;
+  const requestedY = keyboard ? rect.bottom : event.clientY;
+  contextMenuPosition.value = {
+    x: Math.max(8, Math.min(requestedX, window.innerWidth - CONTEXT_MENU_WIDTH - 8)),
+    y: Math.max(8, Math.min(requestedY, window.innerHeight - CONTEXT_MENU_HEIGHT - 8))
+  };
+  contextMenuOpen.value = true;
+  await nextTick();
+  getContextMenuItems()[0]?.focus();
+};
+
+const closeTokenContextMenu = (restoreFocus = false) => {
+  contextMenuOpen.value = false;
+  contextMenuToken.value = null;
+  if (restoreFocus) nextTick(() => contextMenuRow.value?.focus?.());
+};
+
+const runContextMenuAction = (action) => {
+  const token = contextMenuToken.value;
+  closeTokenContextMenu();
+  if (token) action(token);
+};
+
+const handleTokenRowKeydown = (event, token) => {
+  if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+    event.preventDefault();
+    openTokenContextMenu(event, token, true);
+  }
+};
+
+const handleContextMenuKeydown = (event) => {
+  const items = [...getContextMenuItems()];
+  const currentIndex = items.indexOf(document.activeElement);
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeTokenContextMenu(true);
+    return;
+  }
+  if (!items.length) return;
+  let nextIndex = currentIndex;
+  if (event.key === 'ArrowDown') nextIndex = (currentIndex + 1 + items.length) % items.length;
+  else if (event.key === 'ArrowUp') nextIndex = (currentIndex - 1 + items.length) % items.length;
+  else if (event.key === 'Home') nextIndex = 0;
+  else if (event.key === 'End') nextIndex = items.length - 1;
+  else return;
+  event.preventDefault();
+  items[nextIndex]?.focus();
+};
+
+const handleDocumentPointerDown = (event) => {
+  if (!contextMenuOpen.value) return;
+  const root = contextMenuElement.value?.$el ?? contextMenuElement.value;
+  if (root && !root.contains(event.target)) closeTokenContextMenu();
 };
 
 const focusSearch = () => searchField.value?.focus?.();
@@ -507,10 +634,12 @@ watch(() => props.environmentType, () => {
 onMounted(() => {
   loadEnvironment();
   window.addEventListener('ciphervault:focus-token-search', handleFocusSearchEvent);
+  document.addEventListener('pointerdown', handleDocumentPointerDown);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('ciphervault:focus-token-search', handleFocusSearchEvent);
+  document.removeEventListener('pointerdown', handleDocumentPointerDown);
 });
 </script>
 
@@ -528,6 +657,19 @@ onBeforeUnmount(() => {
 /* A textarea does not support type="password"; mask its text visually instead. */
 .token-value-hidden :deep(textarea) {
   -webkit-text-security: disc;
+}
+
+.token-context-menu {
+  position: fixed;
+  z-index: 3000;
+  min-width: 220px;
+  max-width: calc(100vw - 16px);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 24%);
+}
+
+.token-context-menu :deep([role="menuitem"]:focus-visible) {
+  outline: 2px solid currentColor;
+  outline-offset: -2px;
 }
 
 .selection-column {
