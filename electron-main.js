@@ -209,83 +209,137 @@ app.on('activate', () => {
 handleIpc('get-projects', async () => {
   const realm = getRealmInstance();
   const projects = realm.objects('Project');
-  return Array.from(projects).map(p => ({ _id: p._id.toString(), name: p.name }));
+
+  return Array.from(projects).map((project) => ({
+    _id: project._id.toString(),
+    name: project.name
+  }));
 });
 
 handleIpc('create-project', async (event, name) => {
+  const projectName = requireNonEmptyString(name, 'project name', 100);
   const realm = getRealmInstance();
+
   realm.write(() => {
     realm.create('Project', {
       _id: new Realm.BSON.ObjectId(),
-      name: name
+      name: projectName
     });
   });
-  const projects = realm.objects('Project');
-  return Array.from(projects).map(p => ({ _id: p._id.toString(), name: p.name }));
+   return Array.from(realm.objects('Project')).map((project) => ({
+    _id: project._id.toString(),
+    name: project.name
+  }));
 });
 
 handleIpc('update-project', async (event, id, name) => {
+  const projectId = getObjectId(id, 'project ID');
+  const projectName = requireNonEmptyString(name, 'project name', 100);
   const realm = getRealmInstance();
-  const project = realm.objectForPrimaryKey('Project', new Realm.BSON.ObjectId(id));
-  if (project) {
-    realm.write(() => {
-      project.name = name;
-    });
-    return { _id: project._id.toString(), name: project.name };
-  }
-  return null;
+  const project = realm.objectForPrimaryKey('Project', projectId);
+
+  if (!project) return null;
+
+  realm.write(() => {
+    project.name = projectName;
+  });
+
+  return {
+    _id: project._id.toString(),
+    name: project.name
+  };
 });
 
 handleIpc('delete-project', async (event, id) => {
+  const projectId = getObjectId(id, 'project ID');
   const realm = getRealmInstance();
-  const project = realm.objectForPrimaryKey('Project', new Realm.BSON.ObjectId(id));
-  if (project) {
-    realm.write(() => {
-      // Delete associated environments and tokens
-      const environments = realm.objects('Environment').filtered('project._id == $0', project._id);
-      environments.forEach(env => {
-        const tokens = realm.objects('Token').filtered('environment._id == $0', env._id);
-        realm.delete(tokens);
-        realm.delete(env);
-      });
-      realm.delete(project);
-    });
-    return true;
-  }
-  return false;
+  const project = realm.objectForPrimaryKey('Project', projectId);
+
+  if (!project) return false;
+
+  realm.write(() => {
+    const environments = realm
+      .objects('Environment')
+      .filtered('project._id == $0', project._id);
+
+    for (const environment of environments) {
+      const tokens = realm
+        .objects('Token')
+        .filtered('environment._id == $0', environment._id);
+
+      realm.delete(tokens);
+      realm.delete(environment);
+    }
+
+    realm.delete(project);
+  });
+
+  return true;
 });
 
 // IPC Handlers for Environments
 handleIpc('get-environments', async (event, projectId) => {
+  const id = getObjectId(projectId, 'project ID');
   const realm = getRealmInstance();
-  const project = realm.objectForPrimaryKey('Project', new Realm.BSON.ObjectId(projectId));
+  const project = realm.objectForPrimaryKey('Project', id);
+
   if (!project) return [];
-  
-  const environments = realm.objects('Environment').filtered('project._id == $0', project._id);
-  return Array.from(environments).map(e => ({
-    _id: e._id.toString(),
-    type: e.type,
-    projectId: e.project._id.toString()
+
+  const environments = realm
+    .objects('Environment')
+    .filtered('project._id == $0', project._id);
+
+  return Array.from(environments).map((environment) => ({
+    _id: environment._id.toString(),
+    type: environment.type,
+    projectId: environment.project._id.toString()
+  }));
+});
+
+handleIpc('get-environments', async (event, projectId) => {
+  const id = getObjectId(projectId, 'project ID');
+  const realm = getRealmInstance();
+  const project = realm.objectForPrimaryKey('Project', id);
+
+  if (!project) return [];
+
+  const environments = realm
+    .objects('Environment')
+    .filtered('project._id == $0', project._id);
+
+  return Array.from(environments).map((environment) => ({
+    _id: environment._id.toString(),
+    type: environment.type,
+    projectId: environment.project._id.toString()
   }));
 });
 
 handleIpc('get-or-create-environment', async (event, projectId, type) => {
+  const id = getObjectId(projectId, 'project ID');
+  const environmentType = requireEnvironmentType(type);
   const realm = getRealmInstance();
-  const project = realm.objectForPrimaryKey('Project', new Realm.BSON.ObjectId(projectId));
+  const project = realm.objectForPrimaryKey('Project', id);
+
   if (!project) return null;
-  
-  let environment = realm.objects('Environment').filtered('project._id == $0 AND type == $1', project._id, type)[0];
-  
+
+  let environment = realm
+    .objects('Environment')
+    .filtered(
+      'project._id == $0 AND type == $1',
+      project._id,
+      environmentType
+    )[0];
+
   if (!environment) {
     realm.write(() => {
       environment = realm.create('Environment', {
         _id: new Realm.BSON.ObjectId(),
-        type: type,
-        project: project
+        type: environmentType,
+        project
       });
     });
   }
-  
+
   return {
     _id: environment._id.toString(),
     type: environment.type,
@@ -308,6 +362,14 @@ function getObjectId(id, fieldName = 'id') {
     throw new TypeError(`Invalid ${fieldName}`);
   }
   return new Realm.BSON.ObjectId(id);
+}
+
+function requireEnvironmentType(value) {
+  if (value !== 'Production' && value !== 'Development') {
+    throw new TypeError('Invalid environment type');
+  }
+
+  return value;
 }
 
 function toTokenMetadata(token) {
