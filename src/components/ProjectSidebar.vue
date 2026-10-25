@@ -6,6 +6,7 @@
         icon="mdi-plus"
         size="small"
         variant="text"
+        aria-label="Create project"
         @click="showCreateDialog = true"
       ></v-btn>
     </v-card-title>
@@ -17,23 +18,24 @@
         v-for="project in projects"
         :key="project._id"
         :active="selectedProject && selectedProject._id === project._id"
-        @click="$emit('select-project', project)"
         class="project-item"
+        @click="$emit('select-project', project)"
       >
-        <template v-slot:prepend>
+        <template #prepend>
           <v-icon icon="mdi-folder"></v-icon>
         </template>
 
         <v-list-item-title>{{ project.name }}</v-list-item-title>
 
-        <template v-slot:append>
+        <template #append>
           <v-menu>
-            <template v-slot:activator="{ props }">
+            <template #activator="{ props: menuProps }">
               <v-btn
                 icon="mdi-dots-vertical"
                 size="x-small"
                 variant="text"
-                v-bind="props"
+                aria-label="Project actions"
+                v-bind="menuProps"
                 @click.stop
               ></v-btn>
             </template>
@@ -81,7 +83,7 @@
         <v-card-title>Edit Project</v-card-title>
         <v-card-text>
           <v-text-field
-            v-model="editingProject.name"
+            v-model="editingProjectName"
             label="Project Name"
             variant="outlined"
             autofocus
@@ -90,8 +92,10 @@
         </v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
-          <v-btn variant="text" @click="showEditDialog = false">Cancel</v-btn>
-          <v-btn color="primary" @click="updateProject">Save</v-btn>
+          <v-btn variant="text" @click="cancelEdit">Cancel</v-btn>
+          <v-btn color="primary" :disabled="!editingProjectName.trim()" @click="updateProject">
+            Save
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -116,7 +120,7 @@
 <script setup>
 import { ref } from 'vue';
 
-const props = defineProps({
+defineProps({
   projects: {
     type: Array,
     required: true
@@ -133,28 +137,39 @@ const showCreateDialog = ref(false);
 const showEditDialog = ref(false);
 const showDeleteDialog = ref(false);
 const newProjectName = ref('');
-const editingProject = ref(null);
+const editingProjectId = ref(null);
+const editingProjectName = ref('');
 const deletingProject = ref(null);
 
 const createProject = () => {
-  if (newProjectName.value.trim()) {
-    emit('create-project', newProjectName.value.trim());
-    newProjectName.value = '';
-    showCreateDialog.value = false;
-  }
+  const name = newProjectName.value.trim();
+  if (!name) return;
+
+  emit('create-project', name);
+  newProjectName.value = '';
+  showCreateDialog.value = false;
 };
 
 const editProject = (project) => {
-  editingProject.value = { ...project };
+  editingProjectId.value = project._id;
+  editingProjectName.value = project.name;
   showEditDialog.value = true;
 };
 
+const cancelEdit = () => {
+  showEditDialog.value = false;
+  // Keep the form's bound value valid while Vuetify finishes the close transition.
+  // The next call to editProject overwrites both fields.
+};
+
 const updateProject = () => {
-  if (editingProject.value && editingProject.value.name.trim()) {
-    emit('update-project', editingProject.value._id, editingProject.value.name.trim());
-    showEditDialog.value = false;
-    editingProject.value = null;
-  }
+  const id = editingProjectId.value;
+  const name = editingProjectName.value.trim();
+  if (!id || !name) return;
+
+  emit('update-project', id, name);
+  showEditDialog.value = false;
+  editingProjectId.value = null;
 };
 
 const confirmDelete = (project) => {
@@ -163,11 +178,11 @@ const confirmDelete = (project) => {
 };
 
 const deleteProject = () => {
-  if (deletingProject.value) {
-    emit('delete-project', deletingProject.value._id);
-    showDeleteDialog.value = false;
-    deletingProject.value = null;
-  }
+  if (!deletingProject.value) return;
+
+  emit('delete-project', deletingProject.value._id);
+  showDeleteDialog.value = false;
+  deletingProject.value = null;
 };
 </script>
 
@@ -176,4 +191,3 @@ const deleteProject = () => {
   cursor: pointer;
 }
 </style>
-
