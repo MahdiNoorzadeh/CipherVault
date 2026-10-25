@@ -2,20 +2,49 @@
   <v-card class="fill-height" elevation="0" rounded="0">
     <v-card-title class="d-flex align-center justify-space-between">
       <span>Projects</span>
-      <v-btn
-        icon="mdi-plus"
-        size="small"
-        variant="text"
-        aria-label="Create project"
-        @click="showCreateDialog = true"
-      ></v-btn>
+      <v-menu>
+        <template #activator="{ props: menuProps }">
+          <v-btn
+            icon="mdi-plus"
+            size="small"
+            variant="text"
+            aria-label="Project actions"
+            title="Create or search projects"
+            v-bind="menuProps"
+          ></v-btn>
+        </template>
+        <v-list density="compact">
+          <v-list-item prepend-icon="mdi-folder-plus-outline" @click="showCreateDialog = true">
+            <v-list-item-title>Create project</v-list-item-title>
+          </v-list-item>
+          <v-list-item prepend-icon="mdi-magnify" @click="toggleProjectSearch">
+            <v-list-item-title>{{ showProjectSearch ? 'Hide project search' : 'Search projects' }}</v-list-item-title>
+          </v-list-item>
+        </v-list>
+      </v-menu>
     </v-card-title>
 
     <v-divider></v-divider>
 
+    <div v-if="showProjectSearch" class="px-3 pt-3">
+      <v-text-field
+        v-model="projectSearchQuery"
+        label="Search projects"
+        placeholder="Enter project name"
+        prepend-inner-icon="mdi-magnify"
+        variant="outlined"
+        density="compact"
+        hide-details
+        clearable
+        autofocus
+        aria-label="Search projects by name"
+        @click:clear="projectSearchQuery = ''"
+      ></v-text-field>
+    </div>
+
     <v-list density="compact" nav>
       <v-list-item
-        v-for="project in projects"
+        v-for="project in filteredProjects"
         :key="project._id"
         :active="selectedProject && selectedProject._id === project._id"
         class="project-item"
@@ -53,6 +82,12 @@
 
       <v-list-item v-if="projects.length === 0" class="text-center text-medium-emphasis">
         <v-list-item-title>No projects yet</v-list-item-title>
+      </v-list-item>
+      <v-list-item
+        v-else-if="filteredProjects.length === 0"
+        class="text-center text-medium-emphasis"
+      >
+        <v-list-item-title>No matching projects</v-list-item-title>
       </v-list-item>
     </v-list>
 
@@ -118,9 +153,9 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
-defineProps({
+const props = defineProps({
   projects: {
     type: Array,
     required: true
@@ -136,10 +171,26 @@ const emit = defineEmits(['select-project', 'create-project', 'update-project', 
 const showCreateDialog = ref(false);
 const showEditDialog = ref(false);
 const showDeleteDialog = ref(false);
+const showProjectSearch = ref(false);
+const projectSearchQuery = ref('');
 const newProjectName = ref('');
 const editingProjectId = ref(null);
 const editingProjectName = ref('');
 const deletingProject = ref(null);
+
+const filteredProjects = computed(() => {
+  const query = String(projectSearchQuery.value ?? '').trim().toLocaleLowerCase();
+  if (!query) return props.projects;
+
+  return props.projects.filter((project) =>
+    String(project.name ?? '').toLocaleLowerCase().includes(query)
+  );
+});
+
+const toggleProjectSearch = () => {
+  showProjectSearch.value = !showProjectSearch.value;
+  if (!showProjectSearch.value) projectSearchQuery.value = '';
+};
 
 const createProject = () => {
   const name = newProjectName.value.trim();
