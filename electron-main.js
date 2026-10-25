@@ -1,5 +1,5 @@
 import { requireNonEmptyString, requireObjectIdString, requireEnvironmentType, requireTokenData } from './src/main/ipc-validation.js';
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, clipboard } from 'electron';
 import { fileURLToPath } from 'url';
 import { dirname, join, resolve } from 'path';
 import { existsSync } from 'fs';
@@ -8,12 +8,39 @@ import crypto from 'crypto';
 import { initRealm, getRealmInstance } from './src/main/realm-config.js';
 import { getMasterKey, setMasterKey } from './src/main/keytar-manager.js';
 import { encryptToken, decryptToken } from './src/main/crypto-utils.js';
+import { writeSecureLog, logIpcFailure } from './src/main/secure-logger.js';
+import { shouldClearClipboard } from './src/main/secure-log-format.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 let mainWindow;
 let realmInstance;
+let clipboardClearTimer = null;
+let lastCopiedSecret = null;
+const CLIPBOARD_CLEAR_DELAY_MS = 30_000;
+
+function clearClipboardIfStillOwned() {
+  if (lastCopiedSecret === null) return;
+  try {
+    if (shouldClearClipboard(clipboard.readText(), lastCopiedSecret)) {
+      clipboard.clear();
+      writeSecureLog('token.clipboard_cleared');
+    }
+  } catch {
+    // Clipboard access may be unavailable; never let cleanup crash the app.
+  } finally {
+    lastCopiedSecret = null;
+    clipboardClearTimer = null;
+  }
+}
+
+function scheduleClipboardClear(value) {
+  if (clipboardClearTimer) clearTimeout(clipboardClearTimer);
+  lastCopiedSecret = value;
+  clipboardClearTimer = setTimeout(clearClipboardIfStillOwned, CLIPBOARD_CLEAR_DELAY_MS);
+  clipboardClearTimer.unref?.();
+}
 
 function isDevelopmentMode() {
   return !app.isPackaged && process.env.NODE_ENV === 'development';
@@ -63,9 +90,23 @@ function assertTrustedIpcSender(event) {
 }
 
 function handleIpc(channel, handler) {
-  ipcMain.handle(channel, (event, ...args) => {
-    assertTrustedIpcSender(event);
-    return handler(event, ...args);
+  ipcMain.handle(channel, async (event, ...args) => {
+    try {
+      assertTrustedIpcSender(event);
+      return await handler(event, ...args);
+    } catch (error) {
+      // Never log IPC arguments or raw error messages: either can contain secrets.
+      logIpcFailure(channel, error);
+      const safeError = new Error(
+        error instanceof TypeError && /^Invalid /.test(error.message)
+          ? error.message
+          : 'Unable to complete the requested operation. Please try again.'
+      );
+      safeError.name = error instanceof TypeError && /^Invalid /.test(error.message)
+        ? 'TypeError'
+        : 'Error';
+      throw safeError;
+    }
   });
 }
 
@@ -95,12 +136,13 @@ app.whenReady().then(async () => {
 
     // Initialize Realm
     realmInstance = await initRealm();
-    
+    writeSecureLog('app.startup');
     createWindow();
   } catch (error) {
     // Fail closed: do not leave a headless process running after secure storage
     // or keyring initialization fails. Keep details in logs, not the dialog.
-    console.error('Failed to initialize app:', error);
+    writeSecureLog('app.startup_failed', { outcome: 'failure', errorType: error instanceof Error ? error.name : 'UnknownError' }, 'error');
+    console.error('Failed to initialize app:', error instanceof Error ? error.name : 'UnknownError');
     dialog.showErrorBox(
       'CipherVault could not start',
       'CipherVault could not initialize secure storage or access the operating-system keyring. Check your system keyring and try again.'
@@ -200,6 +242,11 @@ function createWindow() {
     mainWindow.loadFile(indexPath);
   }
 }
+
+app.on('before-quit', () => {
+  if (clipboardClearTimer) clearTimeout(clipboardClearTimer);
+  clearClipboardIfStillOwned();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
@@ -377,7 +424,23 @@ handleIpc('get-token-value', async (event, tokenId) => {
   if (!token) return null;
 
   const masterKey = await requireMasterKey();
-  return { value: decryptToken(token.value, masterKey) };
+  const value = decryptToken(token.value, masterKey);
+  writeSecureLog('token.revealed', { entity: 'token', outcome: 'success' });
+  return { value };
+});
+
+handleIpc('copy-token', async (event, tokenId) => {
+  const validatedTokenId = getObjectId(tokenId, 'token ID');
+  const realm = getRealmInstance();
+  const token = realm.objectForPrimaryKey('Token', validatedTokenId);
+  if (!token) return false;
+
+  const masterKey = await requireMasterKey();
+  const value = decryptToken(token.value, masterKey);
+  clipboard.writeText(value);
+  scheduleClipboardClear(value);
+  writeSecureLog('token.copied', { entity: 'token', outcome: 'success' });
+  return true;
 });
 
 handleIpc('create-token', async (event, environmentId, tokenData) => {
@@ -406,6 +469,7 @@ handleIpc('create-token', async (event, environmentId, tokenData) => {
     });
   });
 
+  writeSecureLog('token.created', { entity: 'token', outcome: 'success' });
   return toTokenMetadata(newToken);
 });
 
@@ -427,6 +491,7 @@ handleIpc('update-token', async (event, tokenId, tokenData) => {
     token.value = encryptedValue;
   });
 
+  writeSecureLog('token.updated', { entity: 'token', outcome: 'success' });
   return toTokenMetadata(token);
 });
 
@@ -439,5 +504,6 @@ handleIpc('delete-token', async (event, tokenId) => {
   realm.write(() => {
     realm.delete(token);
   });
+  writeSecureLog('token.deleted', { entity: 'token', outcome: 'success' });
   return true;
 });

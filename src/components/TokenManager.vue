@@ -105,7 +105,7 @@
             variant="outlined"
             rows="3"
             required
-            :type="showTokenValue ? 'text' : 'password'"
+            :class="{ 'token-value-hidden': !showTokenValue }"
           >
             <template v-slot:append-inner>
               <v-btn
@@ -233,10 +233,9 @@ const toggleTokenVisibility = async (token) => {
 
 const copyToken = async (token) => {
   try {
-    const result = await window.electronAPI.getTokenValue(token._id);
-    if (!result || typeof result.value !== 'string') throw new Error('Token not found');
-    await navigator.clipboard.writeText(result.value);
-    showSnackbar('Token copied to clipboard', 'success');
+    const copied = await window.electronAPI.copyToken(token._id);
+    if (!copied) throw new Error('Token not found');
+    showSnackbar('Token copied. Clipboard will clear after 30 seconds.', 'success');
   } catch {
     showSnackbar('Unable to copy token. Check keyring and clipboard permissions.', 'error');
   }
@@ -370,6 +369,11 @@ onMounted(() => {
   font-family: 'Courier New', monospace;
   font-size: 0.9em;
   word-break: break-all;
+}
+
+/* A textarea does not support type="password"; mask its text visually instead. */
+.token-value-hidden :deep(textarea) {
+  -webkit-text-security: disc;
 }
 </style>
 
