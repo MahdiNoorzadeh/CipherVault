@@ -103,9 +103,22 @@
           </td>
           <td>{{ token.name }}</td>
           <td>
-            <v-chip size="small" color="primary" variant="flat">
-              {{ token.service }}
-            </v-chip>
+            <div class="cv-service-cell">
+              <span class="cv-service-icon">
+                <img
+                  v-if="getIconForToken(token)"
+                  :src="getIconForToken(token)"
+                  :alt="`${token.service} icon`"
+                  loading="lazy"
+                  decoding="async"
+                  @error="handleIconError($event, token)"
+                />
+                <v-icon v-else icon="mdi-puzzle-outline" size="20"></v-icon>
+              </span>
+              <v-chip size="small" color="primary" variant="tonal">
+                {{ token.service }}
+              </v-chip>
+            </div>
           </td>
           <td>
             <div class="d-flex align-center">
@@ -213,11 +226,47 @@
           ></v-text-field>
           <v-text-field
             v-model="tokenForm.service"
-            label="Service (e.g., GitHub, AWS, etc.)"
+            label="Service (e.g., GitHub, AWS, Slack)"
             variant="outlined"
-            class="mb-3"
+            class="mb-2"
             required
+            hint="A matching service icon is detected automatically."
+            persistent-hint
           ></v-text-field>
+
+          <div class="cv-icon-customizer mb-4">
+            <div class="cv-icon-preview">
+              <img
+                v-if="previewIconUrl"
+                :src="previewIconUrl"
+                alt="Service icon preview"
+                @error="handlePreviewIconError"
+              />
+              <v-icon v-else icon="mdi-puzzle-outline" size="24"></v-icon>
+            </div>
+            <div class="cv-icon-fields">
+              <v-text-field
+                v-model="tokenForm.iconUrl"
+                label="Custom icon URL (optional)"
+                placeholder="https://example.com/icon.png"
+                density="compact"
+                hide-details
+                clearable
+                @update:model-value="resetPreviewIconError"
+              ></v-text-field>
+              <v-file-input
+                label="Or upload an icon"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif"
+                density="compact"
+                variant="outlined"
+                prepend-icon="mdi-image-plus-outline"
+                hide-details
+                clearable
+                @update:model-value="handleIconFile"
+              ></v-file-input>
+            </div>
+          </div>
+
           <v-textarea
             v-model="tokenForm.value"
             label="Token Value"
@@ -288,6 +337,7 @@
 <script setup>
 import { ref, computed, nextTick, onMounted, onBeforeUnmount, watch } from 'vue';
 import { filterTokensByQuery } from '../main/token-search.js';
+import { getServiceIconUrl, normalizeServiceKey } from '../main/service-icons.js';
 
 const props = defineProps({
   projectId: {
@@ -305,6 +355,10 @@ const emit = defineEmits(['tokens-updated']);
 const tokens = ref([]);
 const searchQuery = ref('');
 const searchField = ref(null);
+const iconOverrides = ref({});
+const failedIconUrls = ref([]);
+const previewIconFailed = ref(false);
+const MAX_CUSTOM_ICON_BYTES = 512 * 1024;
 const selectedTokenIds = ref([]);
 const showBatchDeleteDialog = ref(false);
 const batchDeleteInProgress = ref(false);
@@ -418,8 +472,107 @@ const snackbar = ref({ show: false, message: '', color: 'success' });
 const tokenForm = ref({
   name: '',
   service: '',
-  value: ''
+  value: '',
+  iconUrl: ''
 });
+
+const loadIconOverrides = () => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem('ciphervault.serviceIconOverrides') || '{}');
+    iconOverrides.value = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    iconOverrides.value = {};
+  }
+};
+
+const getIconForToken = (token) => {
+  const key = normalizeServiceKey(token?.service);
+  const custom = key ? iconOverrides.value[key] : null;
+  const url = typeof custom === 'string' ? custom : getServiceIconUrl(token?.service, token?.name);
+  return url && !failedIconUrls.value.includes(url) ? url : null;
+};
+
+const previewIconUrl = computed(() => {
+  const custom = String(tokenForm.value.iconUrl || '').trim();
+  if (custom) return previewIconFailed.value ? null : validateCustomIconUrl(custom);
+  return getServiceIconUrl(tokenForm.value.service, tokenForm.value.name);
+});
+
+const resetPreviewIconError = () => {
+  previewIconFailed.value = false;
+};
+
+const handlePreviewIconError = () => {
+  previewIconFailed.value = true;
+};
+
+const handleIconError = (event, token) => {
+  const url = event?.target?.src;
+  if (url && !failedIconUrls.value.includes(url)) failedIconUrls.value = [...failedIconUrls.value, url];
+};
+
+const handleIconFile = async (fileValue) => {
+  const file = Array.isArray(fileValue) ? fileValue[0] : fileValue;
+  if (!file) return;
+  if (!String(file.type || '').startsWith('image/')) {
+    showSnackbar('Choose a valid image file.', 'error');
+    return;
+  }
+  if (file.size > MAX_CUSTOM_ICON_BYTES) {
+    showSnackbar('Icon files must be 512 KB or smaller.', 'error');
+    return;
+  }
+
+  try {
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error('Unable to read icon file'));
+      reader.readAsDataURL(file);
+    });
+    if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) {
+      throw new Error('Invalid image data');
+    }
+    tokenForm.value.iconUrl = dataUrl;
+    previewIconFailed.value = false;
+  } catch {
+    showSnackbar('Unable to load that icon file.', 'error');
+  }
+};
+
+const validateCustomIconUrl = (value) => {
+  const url = String(value || '').trim();
+  if (!url) return '';
+  if (url.startsWith('data:image/')) return url;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:') return null;
+    return parsed.href;
+  } catch {
+    return null;
+  }
+};
+
+const saveServiceIconOverride = (service, rawUrl) => {
+  const key = normalizeServiceKey(service);
+  if (!key) return;
+  const validatedUrl = validateCustomIconUrl(rawUrl);
+  if (rawUrl && !validatedUrl) {
+    throw new Error('Use an HTTPS image URL or upload a local image.');
+  }
+
+  const next = { ...iconOverrides.value };
+  if (validatedUrl) next[key] = validatedUrl;
+  else delete next[key];
+
+  try {
+    localStorage.setItem('ciphervault.serviceIconOverrides', JSON.stringify(next));
+    iconOverrides.value = next;
+    failedIconUrls.value = [];
+  } catch {
+    throw new Error('Unable to save the icon preference. Try a smaller image.');
+  }
+};
 
 const isTokenFormValid = computed(() => {
   return tokenForm.value.name.trim() && 
@@ -492,7 +645,8 @@ const openCreateDialog = () => {
       tokenForm.value = {
         name: '',
         service: '',
-        value: ''
+        value: '',
+        iconUrl: ''
       };
       showTokenValue.value = false;
       showTokenDialog.value = true;
@@ -502,7 +656,8 @@ const openCreateDialog = () => {
     tokenForm.value = {
       name: '',
       service: '',
-      value: ''
+      value: '',
+      iconUrl: ''
     };
     showTokenValue.value = false;
     showTokenDialog.value = true;
@@ -514,7 +669,14 @@ const editToken = async (token) => {
     const result = await window.electronAPI.getTokenValue(token._id);
     if (!result || typeof result.value !== 'string') throw new Error('Token not found');
     editingToken.value = token;
-    tokenForm.value = { name: token.name, service: token.service, value: result.value };
+    const key = normalizeServiceKey(token.service);
+    tokenForm.value = {
+      name: token.name,
+      service: token.service,
+      value: result.value,
+      iconUrl: (key && iconOverrides.value[key]) || ''
+    };
+    previewIconFailed.value = false;
     showTokenValue.value = false;
     showTokenDialog.value = true;
   } catch {
@@ -528,12 +690,19 @@ const closeTokenDialog = () => {
   tokenForm.value = {
     name: '',
     service: '',
-    value: ''
+    value: '',
+    iconUrl: ''
   };
+  previewIconFailed.value = false;
   showTokenValue.value = false;
 };
 
 const saveToken = async () => {
+  if (String(tokenForm.value.iconUrl || '').trim() && !validateCustomIconUrl(tokenForm.value.iconUrl)) {
+    showSnackbar('Use an HTTPS image URL or upload a local image.', 'error');
+    return;
+  }
+
   if (!isTokenFormValid.value) {
     showSnackbar('Please fill in all fields', 'error');
     return;
@@ -559,6 +728,11 @@ const saveToken = async () => {
       showSnackbar('Token created successfully', 'success');
     }
 
+    try {
+      saveServiceIconOverride(tokenData.service, tokenForm.value.iconUrl);
+    } catch (iconError) {
+      showSnackbar(iconError.message || 'Token saved, but its icon could not be saved.', 'error');
+    }
     await loadTokens();
     emit('tokens-updated');
     closeTokenDialog();
@@ -632,6 +806,7 @@ watch(() => props.environmentType, () => {
 });
 
 onMounted(() => {
+  loadIconOverrides();
   loadEnvironment();
   window.addEventListener('ciphervault:focus-token-search', handleFocusSearchEvent);
   document.addEventListener('pointerdown', handleDocumentPointerDown);
@@ -675,6 +850,68 @@ onBeforeUnmount(() => {
 .selection-column {
   width: 52px;
   white-space: nowrap;
+}
+
+.cv-service-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.cv-service-icon {
+  display: grid;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(167, 150, 219, .14);
+  border-radius: 10px;
+  background: rgba(128, 107, 190, .12);
+  color: #b8a0ff;
+}
+
+.cv-service-icon img,
+.cv-icon-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 6px;
+  object-fit: contain;
+}
+
+.cv-icon-customizer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(167, 150, 219, .18);
+  border-radius: 12px;
+  background: rgba(128, 107, 190, .06);
+}
+
+.cv-icon-preview {
+  display: grid;
+  flex: 0 0 52px;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 12px;
+  background: rgba(128, 107, 190, .14);
+  color: #b8a0ff;
+}
+
+.cv-icon-fields {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 10px;
+}
+
+@media (max-width: 760px) {
+  .cv-icon-customizer { align-items: flex-start; }
 }
 </style>
 

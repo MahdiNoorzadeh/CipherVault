@@ -10,7 +10,7 @@ export default defineConfig(({ command }) => {
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self' data:",
-    "img-src 'self' data: blob:",
+    "img-src 'self' data: blob: https://cdn.simpleicons.org",
     `connect-src 'self'${isDev ? ' http://localhost:5173 ws://localhost:5173' : ''}`,
     "object-src 'none'",
     "base-uri 'self'",
