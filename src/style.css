@@ -1,16 +1,199 @@
-* {
-  margin: 0;
-  padding: 0;
+
+:root {
+  color-scheme: dark;
+
+  font-family:
+    Inter,
+    "Segoe UI",
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  --cv-radius-sm: 6px;
+  --cv-radius-md: 10px;
+  --cv-radius-lg: 14px;
+
+  --cv-transition-fast: 140ms ease;
+  --cv-transition-normal: 200ms ease;
+}
+
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
-body {
-  font-family: 'Roboto', sans-serif;
+html,
+body,
+#app {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+}
+
+html {
   overflow: hidden;
 }
 
-#app {
-  width: 100vw;
-  height: 100vh;
+body {
+  overflow: hidden;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  background: rgb(var(--v-theme-background));
+  color: rgb(var(--v-theme-on-background));
 }
 
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  background: rgba(var(--v-theme-primary), 0.28);
+  color: rgb(var(--v-theme-on-background));
+}
+
+/* Keep the application shell neutral; use violet for interactive emphasis. */
+#app .v-app-bar.bg-primary {
+  background: rgb(var(--v-theme-surface)) !important;
+  color: rgb(var(--v-theme-on-surface)) !important;
+  border-bottom: 1px solid rgb(var(--v-theme-outline-variant));
+  box-shadow: none !important;
+}
+
+#app .v-app-bar.bg-primary .v-icon,
+#app .v-app-bar.bg-primary .v-btn {
+  color: inherit;
+}
+
+/* Balanced surfaces and consistent borders. */
+.v-card {
+  border-color: rgb(var(--v-theme-outline-variant));
+}
+
+.v-card--variant-elevated {
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
+}
+
+.v-divider {
+  opacity: 0.8;
+}
+
+/* Consistent interaction transitions without introducing animation-heavy UI. */
+.v-btn,
+.v-list-item,
+.v-chip,
+.v-tab,
+.v-checkbox-btn,
+.v-switch__thumb {
+  transition:
+    background-color var(--cv-transition-fast),
+    border-color var(--cv-transition-fast),
+    color var(--cv-transition-fast),
+    opacity var(--cv-transition-fast);
+}
+
+/* Clear keyboard focus indicators. */
+:where(
+  button,
+  a,
+  input,
+  textarea,
+  select,
+  [tabindex]:not([tabindex="-1"])
+):focus-visible {
+  outline: 2px solid rgb(var(--v-theme-primary));
+  outline-offset: 2px;
+}
+
+/* Keep Vuetify's own focus ring where it already provides one. */
+.v-btn:focus-visible,
+.v-field:focus-within,
+.v-checkbox-btn:focus-visible {
+  outline-offset: 2px;
+}
+
+/* Comfortable table density and readable token values. */
+.v-table {
+  background: transparent;
+}
+
+.v-table > .v-table__wrapper > table > thead > tr > th {
+  color: rgb(var(--v-theme-on-surface-variant));
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.v-table > .v-table__wrapper > table > tbody > tr > td {
+  height: 56px;
+}
+
+.v-table > .v-table__wrapper > table > tbody > tr {
+  transition: background-color var(--cv-transition-fast);
+}
+
+/* Use subtle scrollbars that remain visible and usable. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color:
+    rgb(var(--v-theme-outline))
+    transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--v-theme-outline));
+  background-clip: padding-box;
+  border: 3px solid transparent;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--v-theme-primary));
+  background-clip: padding-box;
+}
+
+/* Respect reduced-motion preferences. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Allow the palette to follow the active Vuetify theme. */
+html:has(.v-theme--light) {
+  color-scheme: light;
+}
+
+html:has(.v-theme--dark) {
+  color-scheme: dark;
+}
