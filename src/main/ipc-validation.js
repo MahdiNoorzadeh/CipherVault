@@ -1,4 +1,4 @@
-﻿export function requireNonEmptyString(value, fieldName, maxLength = 200) {
+export function requireNonEmptyString(value, fieldName, maxLength = 200) {
   if (
     typeof value !== 'string' ||
     value.trim().length === 0 ||
@@ -16,6 +16,20 @@ export function requireObjectIdString(id, fieldName = 'id') {
   }
 
   return id;
+}
+
+export function requireTokenValue(value, maxLength = 10000) {
+  // Secret material must be preserved byte-for-byte. Validate that it is not
+  // empty/whitespace-only without trimming meaningful leading/trailing spaces.
+  if (
+    typeof value !== 'string' ||
+    value.trim().length === 0 ||
+    value.length > maxLength
+  ) {
+    throw new TypeError('Invalid token value');
+  }
+
+  return value;
 }
 
 export function requireEnvironmentType(value) {
@@ -43,6 +57,6 @@ export function requireTokenData(value) {
   return {
     name: requireNonEmptyString(value.name, 'token name'),
     service: requireNonEmptyString(value.service, 'service name'),
-    value: requireNonEmptyString(value.value, 'token value', 10000)
+    value: requireTokenValue(value.value)
   };
 }

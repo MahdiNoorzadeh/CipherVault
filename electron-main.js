@@ -1,10 +1,9 @@
-﻿import { requireNonEmptyString, requireObjectIdString, requireEnvironmentType, requireTokenData } from './src/main/ipc-validation.js';
-import { app, BrowserWindow, ipcMain } from 'electron';
-import { fileURLToPath, pathToFileURL } from 'url';
+import { requireNonEmptyString, requireObjectIdString, requireEnvironmentType, requireTokenData } from './src/main/ipc-validation.js';
+import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { fileURLToPath } from 'url';
 import { dirname, join, resolve } from 'path';
 import { existsSync } from 'fs';
 import Realm from 'realm';
-import keytar from 'keytar';
 import crypto from 'crypto';
 import { initRealm, getRealmInstance } from './src/main/realm-config.js';
 import { getMasterKey, setMasterKey } from './src/main/keytar-manager.js';
@@ -16,6 +15,32 @@ const __dirname = dirname(__filename);
 let mainWindow;
 let realmInstance;
 
+function isDevelopmentMode() {
+  return !app.isPackaged && process.env.NODE_ENV === 'development';
+}
+
+function isAllowedRendererUrl(rawUrl) {
+  try {
+    const senderUrl = new URL(rawUrl);
+
+    if (isDevelopmentMode()) {
+      return (
+        senderUrl.protocol === 'http:' &&
+        senderUrl.hostname === 'localhost' &&
+        senderUrl.port === '5173' &&
+        !senderUrl.username &&
+        !senderUrl.password
+      );
+    }
+
+    return (
+      senderUrl.protocol === 'file:' &&
+      fileURLToPath(senderUrl) === resolve(__dirname, 'dist', 'index.html')
+    );
+  } catch {
+    return false;
+  }
+}
 
 function assertTrustedIpcSender(event) {
   const frame = event.senderFrame;
@@ -30,35 +55,9 @@ function assertTrustedIpcSender(event) {
     throw new Error('Unauthorized IPC sender');
   }
 
-  let senderUrl;
-
-  try {
-    senderUrl = new URL(frame.url);
-  } catch {
-    throw new Error('Invalid IPC sender URL');
-  }
-
-  const isDev = !app.isPackaged ||
-    process.env.NODE_ENV === 'development';
-
-  if (isDev) {
-    // Allow only the local Vite development server.
-    if (
-      senderUrl.protocol !== 'http:' ||
-      senderUrl.hostname !== 'localhost' ||
-      senderUrl.port !== '5173'
-    ) {
-      throw new Error('Unauthorized IPC sender URL');
-    }
-
-    return;
-  }
-
-  // In production, allow only the packaged renderer entry point.
-  if (
-    senderUrl.protocol !== 'file:' ||
-    fileURLToPath(senderUrl) !== resolve(__dirname, 'dist', 'index.html')
-  ) {
+  // The renderer must be the expected local dev server (development only)
+  // or the exact packaged HTML entry point. Never trust an arbitrary page.
+  if (!isAllowedRendererUrl(frame.url)) {
     throw new Error('Unauthorized IPC sender URL');
   }
 }
@@ -99,7 +98,14 @@ app.whenReady().then(async () => {
     
     createWindow();
   } catch (error) {
+    // Fail closed: do not leave a headless process running after secure storage
+    // or keyring initialization fails. Keep details in logs, not the dialog.
     console.error('Failed to initialize app:', error);
+    dialog.showErrorBox(
+      'CipherVault could not start',
+      'CipherVault could not initialize secure storage or access the operating-system keyring. Check your system keyring and try again.'
+    );
+    app.quit();
   }
 });
 
@@ -133,6 +139,9 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      webviewTag: false,
       // Memory optimizations
       enableRemoteModule: false,
       spellcheck: false, // Disable spellcheck to save memory
@@ -154,9 +163,7 @@ function createWindow() {
 
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWindow.webContents.on('will-navigate', (event, targetUrl) => {
-    const allowedDevUrl = !app.isPackaged && targetUrl.startsWith('http://localhost:5173/');
-    const allowedPackagedUrl = targetUrl === pathToFileURL(join(__dirname, 'dist', 'index.html')).href;
-    if (!allowedDevUrl && !allowedPackagedUrl) event.preventDefault();
+    if (!isAllowedRendererUrl(targetUrl)) event.preventDefault();
   });
 
   // Show window only when ready to avoid white flash
@@ -167,7 +174,7 @@ function createWindow() {
   // Load the app
   // In development, try to load from Vite dev server, otherwise use built files
   // Check if app is packaged (production build) or if NODE_ENV is explicitly set to development
-  const isDev = !app.isPackaged || process.env.NODE_ENV === 'development';
+  const isDev = isDevelopmentMode();
   
   if (isDev) {
     const devServerUrl = 'http://localhost:5173';
@@ -227,7 +234,7 @@ handleIpc('create-project', async (event, name) => {
       name: projectName
     });
   });
-   return Array.from(realm.objects('Project')).map((project) => ({
+  return Array.from(realm.objects('Project')).map((project) => ({
     _id: project._id.toString(),
     name: project.name
   }));
@@ -277,8 +284,6 @@ handleIpc('delete-project', async (event, id) => {
 
   return true;
 });
-
-// IPC Handlers for Environments
 
 // IPC Handlers for Environments
 handleIpc('get-environments', async (event, projectId) => {
@@ -356,8 +361,9 @@ async function requireMasterKey() {
 }
 
 handleIpc('get-tokens', async (event, environmentId) => {
+  const validatedEnvironmentId = getObjectId(environmentId, 'environment ID');
   const realm = getRealmInstance();
-  const environment = realm.objectForPrimaryKey('Environment', getObjectId(environmentId, 'environment ID'));
+  const environment = realm.objectForPrimaryKey('Environment', validatedEnvironmentId);
   if (!environment) return [];
 
   const tokens = realm.objects('Token').filtered('environment._id == $0', environment._id);
@@ -365,8 +371,9 @@ handleIpc('get-tokens', async (event, environmentId) => {
 });
 
 handleIpc('get-token-value', async (event, tokenId) => {
+  const validatedTokenId = getObjectId(tokenId, 'token ID');
   const realm = getRealmInstance();
-  const token = realm.objectForPrimaryKey('Token', getObjectId(tokenId, 'token ID'));
+  const token = realm.objectForPrimaryKey('Token', validatedTokenId);
   if (!token) return null;
 
   const masterKey = await requireMasterKey();
@@ -424,8 +431,9 @@ handleIpc('update-token', async (event, tokenId, tokenData) => {
 });
 
 handleIpc('delete-token', async (event, tokenId) => {
+  const validatedTokenId = getObjectId(tokenId, 'token ID');
   const realm = getRealmInstance();
-  const token = realm.objectForPrimaryKey('Token', getObjectId(tokenId, 'token ID'));
+  const token = realm.objectForPrimaryKey('Token', validatedTokenId);
   if (!token) return false;
 
   realm.write(() => {

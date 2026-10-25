@@ -305,7 +305,7 @@ const saveToken = async () => {
     const tokenData = {
       name: tokenForm.value.name.trim(),
       service: tokenForm.value.service.trim(),
-      value: tokenForm.value.value.trim()
+      value: tokenForm.value.value
     };
 
     if (editingToken.value) {

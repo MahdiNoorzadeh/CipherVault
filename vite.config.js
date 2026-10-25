@@ -8,8 +8,8 @@ export default defineConfig(({ command }) => {
   const csp = [
     "default-src 'self'",
     "script-src 'self'",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
-    "font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net",
+    "style-src 'self' 'unsafe-inline'",
+    "font-src 'self' data:",
     "img-src 'self' data: blob:",
     `connect-src 'self'${isDev ? ' http://localhost:5173 ws://localhost:5173' : ''}`,
     "object-src 'none'",

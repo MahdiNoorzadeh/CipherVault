@@ -1,10 +1,11 @@
-﻿import test from 'node:test';
+import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   requireNonEmptyString,
   requireObjectIdString,
   requireEnvironmentType,
-  requireTokenData
+  requireTokenData,
+  requireTokenValue
 } from '../src/main/ipc-validation.js';
 
 test('requireNonEmptyString trims valid strings', () => {
@@ -83,7 +84,7 @@ test('requireEnvironmentType rejects unsupported values', () => {
   }
 });
 
-test('requireTokenData validates and trims the three supported fields', () => {
+test('requireTokenData trims metadata fields and preserves token value exactly', () => {
   assert.deepEqual(
     requireTokenData({
       name: '  GitHub  ',
@@ -93,9 +94,16 @@ test('requireTokenData validates and trims the three supported fields', () => {
     {
       name: 'GitHub',
       service: 'GitHub API',
-      value: 'secret-value'
+      value: '  secret-value  '
     }
   );
+});
+
+
+test('requireTokenValue preserves meaningful whitespace and rejects empty or oversized values', () => {
+  assert.equal(requireTokenValue('  secret-value\n'), '  secret-value\n');
+  assert.throws(() => requireTokenValue('   '), /Invalid token value/);
+  assert.throws(() => requireTokenValue('x'.repeat(10001)), /Invalid token value/);
 });
 
 test('requireTokenData rejects invalid payload types', () => {
