@@ -7,13 +7,16 @@ const ALLOWED_EVENTS = new Set([
   'token.deleted',
   'token.revealed',
   'token.copied',
-  'token.clipboard_cleared'
+  'token.clipboard_cleared',
+  'settings.keyboard_shortcuts_read_failed',
+  'settings.keyboard_shortcuts_updated'
 ]);
 
 const ALLOWED_CHANNELS = new Set([
   'get-projects', 'create-project', 'update-project', 'delete-project',
   'get-environments', 'get-or-create-environment', 'get-tokens',
-  'get-token-value', 'copy-token', 'create-token', 'update-token', 'delete-token'
+  'get-token-value', 'copy-token', 'create-token', 'update-token', 'delete-token',
+  'get-keyboard-shortcuts', 'save-keyboard-shortcuts'
 ]);
 
 export function buildSecureLogRecord(event, metadata = {}, level = 'info', timestamp = new Date().toISOString()) {

@@ -11,6 +11,20 @@
       </v-btn>
     </div>
 
+    <v-text-field
+      ref="searchField"
+      v-model="searchQuery"
+      label="Search tokens by name or service"
+      placeholder="e.g. GitHub, AWS"
+      prepend-inner-icon="mdi-magnify"
+      variant="outlined"
+      density="comfortable"
+      clearable
+      class="mb-4"
+      :disabled="tokens.length === 0"
+      aria-label="Search tokens by name or service"
+    ></v-text-field>
+
     <v-alert
       v-if="tokens.length === 0"
       type="info"
@@ -18,6 +32,15 @@
       class="mb-4"
     >
       No tokens in this environment. Click "Add Token" to create one.
+    </v-alert>
+
+    <v-alert
+      v-else-if="filteredTokens.length === 0"
+      type="info"
+      variant="tonal"
+      class="mb-4"
+    >
+      No tokens match “{{ searchQuery }}”. Try a different name or service.
     </v-alert>
 
     <v-table v-else>
@@ -30,7 +53,7 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-for="token in tokens" :key="token._id">
+        <tr v-for="token in filteredTokens" :key="token._id">
           <td>{{ token.name }}</td>
           <td>
             <v-chip size="small" color="primary" variant="flat">
@@ -150,7 +173,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
+import { filterTokensByQuery } from '../main/token-search.js';
 
 const props = defineProps({
   projectId: {
@@ -166,6 +190,17 @@ const props = defineProps({
 const emit = defineEmits(['tokens-updated']);
 
 const tokens = ref([]);
+const searchQuery = ref('');
+const searchField = ref(null);
+
+const filteredTokens = computed(() => {
+  return filterTokensByQuery(tokens.value, searchQuery.value);
+});
+
+const focusSearch = () => searchField.value?.focus?.();
+const handleFocusSearchEvent = (event) => {
+  if (event.detail === props.environmentType) focusSearch();
+};
 const environmentId = ref(null);
 const showTokenDialog = ref(false);
 const showDeleteDialog = ref(false);
@@ -357,6 +392,11 @@ watch(() => props.environmentType, () => {
 
 onMounted(() => {
   loadEnvironment();
+  window.addEventListener('ciphervault:focus-token-search', handleFocusSearchEvent);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('ciphervault:focus-token-search', handleFocusSearchEvent);
 });
 </script>
 

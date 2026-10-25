@@ -3,6 +3,7 @@ import { app, BrowserWindow, dialog, ipcMain, clipboard } from 'electron';
 import { fileURLToPath } from 'url';
 import { dirname, join, resolve } from 'path';
 import { existsSync } from 'fs';
+import { mkdir, readFile, rename, writeFile } from 'fs/promises';
 import Realm from 'realm';
 import crypto from 'crypto';
 import { initRealm, getRealmInstance } from './src/main/realm-config.js';
@@ -10,6 +11,7 @@ import { getMasterKey, setMasterKey } from './src/main/keytar-manager.js';
 import { encryptToken, decryptToken } from './src/main/crypto-utils.js';
 import { writeSecureLog, logIpcFailure } from './src/main/secure-logger.js';
 import { shouldClearClipboard } from './src/main/secure-log-format.js';
+import { DEFAULT_SHORTCUTS, validateShortcuts } from './src/main/keyboard-shortcuts.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -506,4 +508,34 @@ handleIpc('delete-token', async (event, tokenId) => {
   });
   writeSecureLog('token.deleted', { entity: 'token', outcome: 'success' });
   return true;
+});
+
+
+// Keyboard shortcuts are non-secret preferences stored outside the token vault.
+const shortcutSettingsPath = () => join(app.getPath('userData'), 'keyboard-shortcuts.json');
+
+async function readKeyboardShortcuts() {
+  try {
+    const raw = await readFile(shortcutSettingsPath(), 'utf8');
+    return validateShortcuts(JSON.parse(raw));
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      writeSecureLog('settings.keyboard_shortcuts_read_failed');
+    }
+    return { ...DEFAULT_SHORTCUTS };
+  }
+}
+
+handleIpc('get-keyboard-shortcuts', async () => readKeyboardShortcuts());
+
+handleIpc('save-keyboard-shortcuts', async (event, shortcuts) => {
+  const validated = validateShortcuts(shortcuts);
+  const filePath = shortcutSettingsPath();
+  const directory = app.getPath('userData');
+  const temporaryPath = `${filePath}.tmp`;
+  await mkdir(directory, { recursive: true });
+  await writeFile(temporaryPath, JSON.stringify(validated, null, 2), { encoding: 'utf8', mode: 0o600 });
+  await rename(temporaryPath, filePath);
+  writeSecureLog('settings.keyboard_shortcuts_updated');
+  return validated;
 });

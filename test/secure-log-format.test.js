@@ -41,3 +41,21 @@ test('clipboard cleanup only clears the exact secret CipherVault copied', () => 
   assert.equal(shouldClearClipboard('', ''), false);
   assert.equal(shouldClearClipboard('secret-a', null), false);
 });
+
+
+test('keyboard shortcut settings events are logged as approved metadata only', () => {
+  const record = buildSecureLogRecord('settings.keyboard_shortcuts_updated', {
+    channel: 'save-keyboard-shortcuts',
+    outcome: 'success',
+    shortcuts: { search: 'Ctrl+K' }
+  }, 'info', '2026-10-25T12:00:00.000Z');
+
+  assert.deepEqual(record, {
+    timestamp: '2026-10-25T12:00:00.000Z',
+    level: 'info',
+    event: 'settings.keyboard_shortcuts_updated',
+    channel: 'save-keyboard-shortcuts',
+    outcome: 'success'
+  });
+  assert.equal(JSON.stringify(record).includes('Ctrl+K'), false);
+});
