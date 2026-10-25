@@ -2,9 +2,39 @@ import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import { fileURLToPath, URL } from 'url';
 
-export default defineConfig({
+export default defineConfig(({ command }) => {
+  const isDev = command === 'serve';
+
+  const csp = [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
+    "font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net",
+    "img-src 'self' data: blob:",
+    `connect-src 'self'${isDev ? ' http://localhost:5173 ws://localhost:5173' : ''}`,
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'"
+  ].join('; ');
+  return{
   plugins: [
     vue(),
+
+      {
+    name: 'ciphervault-csp',
+    transformIndexHtml() {
+      return [
+        {
+          tag: 'meta',
+          attrs: {
+            'http-equiv': 'Content-Security-Policy',
+            content: csp
+          },
+          injectTo: 'head-prepend'
+        }
+      ];
+    }
+  },
     // Plugin to ignore Node.js-only modules during build
     {
       name: 'ignore-node-modules',
@@ -37,6 +67,7 @@ export default defineConfig({
           // Separate vendor chunks
           'vuetify': ['vuetify'],
           'vue-vendor': ['vue']
+          
           // Note: Realm, keytar, and electron are Node.js only and used in main process
         }
       },
@@ -74,5 +105,5 @@ export default defineConfig({
   ssr: {
     noExternal: [] // Don't externalize anything for SSR (we're not using SSR)
   }
-});
+}});
 
