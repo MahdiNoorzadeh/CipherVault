@@ -351,8 +351,8 @@
 
 <script setup>
 import { ref, computed, nextTick, onMounted, onBeforeUnmount, watch } from 'vue';
-import { filterTokensByQuery } from '../main/token-search.js';
-import { getServiceIconUrl, normalizeServiceKey } from '../main/service-icons.js';
+import { filterTokensByQuery } from '../shared/token-search.js';
+import { getServiceIconUrl, normalizeServiceKey } from '../shared/service-icons.js';
 
 const props = defineProps({
   projectId: {

@@ -1,6 +1,6 @@
-import test from 'node:test';
+﻿import test from 'node:test';
 import assert from 'node:assert/strict';
-import { filterTokensByQuery } from '../src/main/token-search.js';
+import { filterTokensByQuery } from '../src/shared/token-search.js';
 
 const tokens = [
   { _id: '1', name: 'GitHub Personal', service: 'GitHub API', value: undefined },
