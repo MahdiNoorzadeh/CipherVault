@@ -16,7 +16,8 @@
     "clean:cache": "node -e \"const p=require('node:path');const f=require('node:fs');const o=require('node:os');const root=process.env.LOCALAPPDATA||(process.platform==='darwin'?p.join(o.homedir(),'Library','Caches'):process.platform==='win32'?p.join(o.homedir(),'AppData','Local'):p.join(o.homedir(),'.cache'));f.rmSync(p.join(root,'electron-builder','Cache'),{recursive:true,force:true})\"",
     "test": "node --test --test-force-exit",
     "test:crud": "node --test --test-force-exit test/crud-integration.test.js",
-    "check": "node --check electron-main.js && node --check preload.cjs && node --check src/main/crypto-utils.js && node --check src/main/ipc-validation.js && node --check src/main/keytar-manager.js && node --check src/main/realm-config.js && node --check src/main/secure-log-format.js && node --check src/main/secure-logger.js && node --check src/shared/keyboard-shortcuts.js && node --check src/shared/token-search.js && node --check src/main/batch-delete.js"
+    "check": "node --check electron-main.js && node --check preload.cjs && node --check vite.config.js && node --check src/main/crypto-utils.js && node --check src/main/ipc-validation.js && node --check src/main/keytar-manager.js && node --check src/main/realm-config.js && node --check src/main/secure-log-format.js && node --check src/main/secure-logger.js && node --check src/main/batch-delete.js && node --check src/main/renderer-security.js && node --check src/shared/keyboard-shortcuts.js && node --check src/shared/service-icons.js && node --check src/shared/token-search.js",
+    "validate": "npm run check && npm test && npm run build"
   },
   "keywords": [
     "token",

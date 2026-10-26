@@ -13,6 +13,7 @@ import { writeSecureLog, logIpcFailure } from './src/main/secure-logger.js';
 import { shouldClearClipboard } from './src/main/secure-log-format.js';
 import { DEFAULT_SHORTCUTS, validateShortcuts } from './src/shared/keyboard-shortcuts.js';
 import { validateBatchDeleteIds } from './src/main/batch-delete.js';
+import { isAllowedRendererUrl } from './src/main/renderer-security.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -49,27 +50,11 @@ function isDevelopmentMode() {
   return !app.isPackaged && process.env.NODE_ENV === 'development';
 }
 
-function isAllowedRendererUrl(rawUrl) {
-  try {
-    const senderUrl = new URL(rawUrl);
-
-    if (isDevelopmentMode()) {
-      return (
-        senderUrl.protocol === 'http:' &&
-        senderUrl.hostname === 'localhost' &&
-        senderUrl.port === '5173' &&
-        !senderUrl.username &&
-        !senderUrl.password
-      );
-    }
-
-    return (
-      senderUrl.protocol === 'file:' &&
-      fileURLToPath(senderUrl) === resolve(__dirname, 'dist', 'index.html')
-    );
-  } catch {
-    return false;
-  }
+function isAllowedApplicationRendererUrl(rawUrl) {
+  return isAllowedRendererUrl(rawUrl, {
+    development: isDevelopmentMode(),
+    expectedFilePath: resolve(__dirname, 'dist', 'index.html')
+  });
 }
 
 function assertTrustedIpcSender(event) {
@@ -87,7 +72,7 @@ function assertTrustedIpcSender(event) {
 
   // The renderer must be the expected local dev server (development only)
   // or the exact packaged HTML entry point. Never trust an arbitrary page.
-  if (!isAllowedRendererUrl(frame.url)) {
+  if (!isAllowedApplicationRendererUrl(frame.url)) {
     throw new Error('Unauthorized IPC sender URL');
   }
 }
@@ -244,7 +229,7 @@ function createWindow() {
 
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWindow.webContents.on('will-navigate', (event, targetUrl) => {
-    if (!isAllowedRendererUrl(targetUrl)) event.preventDefault();
+    if (!isAllowedApplicationRendererUrl(targetUrl)) event.preventDefault();
   });
 
   // Show window only when ready to avoid white flash

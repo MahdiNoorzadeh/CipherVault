@@ -127,7 +127,23 @@ Toggle between Dark and Light themes using the theme button in the top-right cor
 - `npm run electron` - Run Electron with built app
 - `npm run electron:dev` - Run Electron with Vite dev server (development mode)
 - `npm run build` - Build the Vue app for production
+- `npm run check` - Run JavaScript syntax checks for the main process, preload, Vite config, and shared/security modules
+- `npm test` - Run the automated unit and integration tests
+- `npm run test:crud` - Run the isolated Realm CRUD integration test
+- `npm run validate` - Run syntax checks, the full test suite, and the production renderer build
 - `npm run electron:build` - Build the complete Electron app
+
+### Validation Before Release
+
+Run the complete local validation sequence before packaging or publishing changes:
+
+```bash
+npm ci
+npm run validate
+npm run electron:build
+```
+
+`npm run validate` checks JavaScript syntax, runs the automated tests, and builds the Vite renderer. It does not replace a manual smoke test of the packaged Electron app, OS keyring access, window controls, clipboard cleanup, or installer behavior. Run those checks on each target operating system before releasing.
 
 ### Building for Distribution
 
