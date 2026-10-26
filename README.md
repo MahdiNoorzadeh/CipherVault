@@ -54,7 +54,7 @@ For detailed setup instructions, see [SETUPGUIDE.md](./SETUPGUIDE.md).
 ```
 ciphervault/
 ├── electron-main.js          # Electron main process
-├── preload.js                # Preload script for secure IPC
+├── preload.cjs               # Preload script for secure IPC
 ├── vite.config.js            # Vite configuration
 ├── package.json              # Project dependencies
 ├── src/
@@ -125,7 +125,8 @@ Toggle between Dark and Light themes using the theme button in the top-right cor
 - `npm run electron` - Run Electron with built app
 - `npm run electron:dev` - Run Electron with Vite dev server (development mode)
 - `npm run build` - Build the Vue app for production
-- `npm run electron:build` - Build the complete Electron app
+- `npm run electron:build` - Build the complete Windows Electron app
+- `npm run check` - Syntax-check main-process and security modules
 
 ### Building for Distribution
 

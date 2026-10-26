@@ -31,7 +31,7 @@ This document outlines the optimizations made to CipherVault for better build pe
 - **Vite Configuration**: Added manual chunks for better code splitting
   - `vuetify`: Separated Vuetify library
   - `vue-vendor`: Separated Vue core
-  - `realm`: Separated Realm (though it's Node.js only)
+  - Realm and Keytar remain in the Electron main process and are not renderer chunks
 - **Result**: Smaller initial bundle, faster load times, better memory usage
 
 ### 2. Lazy Component Loading
@@ -119,3 +119,24 @@ Potential improvements:
 - [ ] Add service worker for offline caching
 - [ ] Optimize Realm queries for better performance
 
+
+
+## Release verification status
+
+The source archive review includes static checks and unit tests, but it does not include `node_modules` or a packaged Electron runtime. Do not treat the expected memory figures above as measured benchmarks; measure them on supported target machines before publishing them as guarantees.
+
+Before each release, run these commands from the project root on Windows:
+
+```powershell
+npm ci
+npm run check
+npm test
+npm run test:crud
+npm run build
+npm run electron:build
+npm audit --omit=dev
+```
+
+Confirm that the packaged app starts, creates a test vault, can create/reveal/copy/update/delete a token, preserves the vault after restart, and fails safely if the OS keyring is unavailable. Confirm that the clipboard timer does not clear text copied by another application. Verify the installer and uninstall flow on a clean Windows test account.
+
+The npm audit status remains unverified if the registry audit endpoint fails. Do not disable TLS verification to bypass that failure.

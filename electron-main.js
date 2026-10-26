@@ -145,7 +145,9 @@ app.whenReady().then(async () => {
     // Fail closed: do not leave a headless process running after secure storage
     // or keyring initialization fails. Keep details in logs, not the dialog.
     writeSecureLog('app.startup_failed', { outcome: 'failure', errorType: error instanceof Error ? error.name : 'UnknownError' }, 'error');
-    console.error('Failed to initialize app:', error instanceof Error ? error.name : 'UnknownError');
+    // Keep diagnostics to a safe error category; native errors can include
+    // local paths or implementation details that should not reach the console.
+
     dialog.showErrorBox(
       'CipherVault could not start',
       'CipherVault could not initialize secure storage or access the operating-system keyring. Check your system keyring and try again.'
@@ -164,12 +166,14 @@ function createWindow() {
     // Check if file exists, if not, iconPath will be undefined and Electron will use default
     if (!existsSync(iconPath)) {
       iconPath = undefined;
-      console.log('Icon file not found, using default Electron icon');
+      // Missing optional icon is non-fatal; use Electron's default icon.
+
     } else {
-      console.log('Using custom icon:', iconPath);
+      // Avoid logging absolute local paths in the main-process console.
+
     }
-  } catch (error) {
-    console.log('Could not load custom icon, using default:', error.message);
+  } catch {
+    // Icon loading is optional and must not prevent startup.
     iconPath = undefined;
   }
   
@@ -223,9 +227,8 @@ function createWindow() {
   
   if (isDev) {
     const devServerUrl = 'http://localhost:5173';
-    console.log('Development mode - Loading from dev server:', devServerUrl);
-    console.log('NODE_ENV:', process.env.NODE_ENV);
-    console.log('isPackaged:', app.isPackaged);
+    // Development-only renderer loading; production never uses this URL.
+
     
     mainWindow.loadURL(devServerUrl);
     mainWindow.webContents.openDevTools();
@@ -233,10 +236,7 @@ function createWindow() {
     // Handle load failures
     mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
       if (errorCode === -106 || errorCode === -105) {
-        console.error('Failed to load dev server at:', validatedURL);
-        console.error('Error code:', errorCode, 'Description:', errorDescription);
-        console.error('Make sure Vite dev server is running on port 5173');
-        console.error('Run "npm run dev" in a separate terminal, or use "npm run electron:dev"');
+        console.error('CipherVault development renderer failed to load. Start it with "npm run electron:dev".');
       }
     });
   } else {
@@ -249,6 +249,18 @@ function createWindow() {
 app.on('before-quit', () => {
   if (clipboardClearTimer) clearTimeout(clipboardClearTimer);
   clearClipboardIfStillOwned();
+
+  // Release the native Realm handle cleanly so its file lock is not left open
+  // during shutdown or application updates.
+  try {
+    if (realmInstance && !realmInstance.isClosed) {
+      realmInstance.close();
+    }
+  } catch {
+    // Shutdown cleanup is best-effort; do not block application exit.
+  } finally {
+    realmInstance = null;
+  }
 });
 
 app.on('window-all-closed', () => {

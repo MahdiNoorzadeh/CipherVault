@@ -52,11 +52,11 @@ export async function initRealm() {
 
   try {
     realmInstance = await Realm.open(config);
-    console.log('Realm database initialized successfully');
     return realmInstance;
-  } catch (error) {
-    console.error('Failed to initialize Realm:', error);
-    throw error;
+  } catch {
+    // The caller records a sanitized startup failure. Native Realm errors can
+    // include local paths, so do not print the raw exception here.
+    throw new Error('Realm database initialization failed');
   }
 }
 
