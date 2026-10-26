@@ -12,16 +12,53 @@
       <div class="cv-ambient" aria-hidden="true"></div>
       <div class="cv-ambient-frame" aria-hidden="true"></div>
 
+    <header class="custom-titlebar">
+      <div class="titlebar-brand">
+        <span class="titlebar-title">CipherVault</span>
+        <span class="titlebar-subtitle">Secure Token Management</span>
+      </div>
+
+      <div class="window-controls">
+        <button
+          type="button"
+          aria-label="Minimize window"
+          title="Minimize"
+          @click="minimizeWindow"
+        >
+          <span class="control-minimize"></span>
+        </button>
+
+        <button
+          type="button"
+          :aria-label="isMaximized ? 'Restore window' : 'Maximize window'"
+          :title="isMaximized ? 'Restore' : 'Maximize'"
+          @click="toggleMaximizeWindow"
+        >
+          <span v-if="!isMaximized" class="control-maximize"></span>
+          <span v-else class="control-restore"></span>
+        </button>
+
+        <button
+          type="button"
+          aria-label="Close window"
+          title="Close"
+          @click="closeWindow"
+        >
+          <span class="control-close"></span>
+        </button>
+      </div>
+    </header>
       <aside class="cv-sidebar">
-        <div class="cv-brand">
+          <div class="cv-brand">
           <div class="cv-brand-mark" aria-hidden="true">
             <v-icon icon="mdi-shield-lock" size="34"></v-icon>
           </div>
+
           <div class="cv-brand-copy">
             <div class="cv-brand-name">CipherVault</div>
             <div class="cv-brand-subtitle">Secure Token Management</div>
           </div>
-        </div>
+          </div>
 
         <div class="cv-projects-region">
           <ProjectSidebar
@@ -340,6 +377,7 @@ const loadTokens = () => {
 
 onMounted(async () => {
   ambientPattern.value = Math.floor(Math.random() * 5) + 1;
+  await refreshMaximizedState();
   loadProjects();
   window.addEventListener('keydown', handleGlobalKeydown, true);
   try {
@@ -356,6 +394,29 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleGlobalKeydown, true);
   if (pointerFrame) cancelAnimationFrame(pointerFrame);
 });
+
+const isMaximized = ref(false);
+
+async function refreshMaximizedState() {
+  try {
+    isMaximized.value = await window.electronAPI.isWindowMaximized();
+  } catch (error) {
+    console.error('Unable to read window state.');
+  }
+}
+
+async function minimizeWindow() {
+  await window.electronAPI.minimizeWindow();
+}
+
+async function toggleMaximizeWindow() {
+  await window.electronAPI.toggleMaximizeWindow();
+  await refreshMaximizedState();
+}
+
+async function closeWindow() {
+  await window.electronAPI.closeWindow();
+}
 </script>
 
 <style>
@@ -363,6 +424,10 @@ onBeforeUnmount(() => {
   position: relative;
   display: grid;
   grid-template-columns: 292px minmax(0, 1fr);
+  grid-template-rows: 36px minmax(0, 1fr);
+  grid-template-areas:
+    "titlebar titlebar"
+    "sidebar main";
   width: 100%;
   height: 100%;
   min-height: 0;
@@ -372,65 +437,129 @@ onBeforeUnmount(() => {
   color: #f2f1fb;
 }
 
-.cv-ambient,
-.cv-ambient-frame {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
+.custom-titlebar {
+  grid-area: titlebar;
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 36px;
+  min-width: 0;
+  padding-left: 14px;
+  background: #11111b;
+  color: #f4f0ff;
+  -webkit-app-region: drag;
+  user-select: none;
 }
 
-.cv-ambient {
-  z-index: 0;
+.titlebar-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
   overflow: hidden;
-  background:
-    radial-gradient(600px circle at var(--pointer-x, 50%) var(--pointer-y, 35%), rgba(130, 77, 255, .16), transparent 48%),
-    radial-gradient(600px circle at 12% 8%, rgba(83, 58, 185, .12), transparent 55%),
-    linear-gradient(135deg, #10121d 0%, #0c1018 55%, #11101c 100%);
 }
 
-.cv-ambient::before,
-.cv-ambient::after {
+.titlebar-title {
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.titlebar-subtitle {
+  color: #aaa9c8;
+  font-size: 11px;
+}
+
+.window-controls {
+  display: flex;
+  flex: 0 0 auto;
+  height: 36px;
+  -webkit-app-region: no-drag;
+}
+
+.window-controls button {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font-size: 16px;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.window-controls button:hover {
+  background: #343044;
+}
+
+.window-controls button:last-child:hover {
+  background: #c42b1c;
+}
+
+/* Minimize icon */
+.control-minimize {
+  width: 10px;
+  height: 1px;
+  background: currentColor;
+}
+
+/* Maximize icon */
+.control-maximize {
+  width: 10px;
+  height: 10px;
+  border: 1px solid currentColor;
+}
+
+/* Restore icon */
+.control-restore {
+  position: relative;
+  width: 10px;
+  height: 9px;
+  border: 1px solid currentColor;
+}
+
+.control-restore::before {
   content: "";
   position: absolute;
-  inset: -25%;
-  opacity: .42;
-  filter: blur(54px);
-  transform: translate3d(0, 0, 0);
-  will-change: transform;
+  width: 7px;
+  height: 6px;
+  top: -4px;
+  right: -4px;
+  border: 1px solid currentColor;
+  background: #11111b;
 }
 
-.cv-ambient::before {
-  background: radial-gradient(ellipse at 35% 40%, rgba(115, 69, 255, .25), transparent 34%);
-  animation: cv-drift-a 23s ease-in-out infinite alternate;
+/* Close icon */
+.control-close {
+  position: relative;
+  width: 12px;
+  height: 12px;
 }
 
-.cv-ambient::after {
-  background: radial-gradient(ellipse at 70% 62%, rgba(77, 42, 180, .2), transparent 32%);
-  animation: cv-drift-b 29s ease-in-out infinite alternate;
+.control-close::before,
+.control-close::after {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: 0;
+  width: 12px;
+  height: 1px;
+  background: currentColor;
 }
 
-.ambient-pattern-2 .cv-ambient::before { background: radial-gradient(ellipse at 70% 24%, rgba(139, 82, 255, .28), transparent 36%); }
-.ambient-pattern-2 .cv-ambient::after { background: radial-gradient(ellipse at 24% 75%, rgba(84, 48, 195, .22), transparent 35%); }
-.ambient-pattern-3 .cv-ambient::before { background: radial-gradient(ellipse at 22% 70%, rgba(117, 73, 255, .26), transparent 34%); }
-.ambient-pattern-3 .cv-ambient::after { background: radial-gradient(ellipse at 80% 25%, rgba(94, 59, 196, .2), transparent 33%); }
-.ambient-pattern-4 .cv-ambient::before { background: radial-gradient(ellipse at 50% 15%, rgba(153, 90, 255, .23), transparent 36%); }
-.ambient-pattern-4 .cv-ambient::after { background: radial-gradient(ellipse at 48% 90%, rgba(75, 51, 175, .22), transparent 34%); }
-.ambient-pattern-5 .cv-ambient::before { background: radial-gradient(ellipse at 15% 28%, rgba(108, 70, 237, .26), transparent 35%); }
-.ambient-pattern-5 .cv-ambient::after { background: radial-gradient(ellipse at 88% 72%, rgba(152, 81, 255, .19), transparent 33%); }
+.control-close::before {
+  transform: rotate(45deg);
+}
 
-.cv-ambient-frame {
-  z-index: 0;
-  inset: 1px;
-  border: 1px solid rgba(153, 111, 255, .3);
-  border-radius: 11px;
-  box-shadow:
-    inset 0 0 22px rgba(129, 80, 255, .06),
-    0 0 22px rgba(129, 80, 255, .12);
-  opacity: .8;
-  mask-image: radial-gradient(ellipse at var(--pointer-x, 50%) var(--pointer-y, 35%), #000 0%, rgba(0,0,0,.82) 30%, transparent 78%);
+.control-close::after {
+  transform: rotate(-45deg);
 }
 
 .cv-sidebar {
+  grid-area: sidebar;
   position: relative;
   z-index: 1;
   display: flex;
@@ -440,61 +569,92 @@ onBeforeUnmount(() => {
   background: rgba(16, 18, 29, .84);
   border-right: 1px solid rgba(153, 139, 201, .13);
   backdrop-filter: blur(14px);
-  z-index: 1;
 }
 
-.cv-brand {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  min-height: 118px;
-  padding: 20px 22px;
-  border-bottom: 1px solid rgba(153, 139, 201, .13);
-  background: linear-gradient(115deg, rgba(93, 63, 176, .12), transparent 75%);
+/* Let the project list take the available height so sidebar actions stay at the bottom. */
+.cv-projects-region {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
-
-.cv-brand-mark {
-  display: grid;
-  flex: 0 0 62px;
-  width: 62px;
-  height: 62px;
-  place-items: center;
-  color: #c2a8ff;
-  border: 1px solid rgba(174, 136, 255, .78);
-  border-radius: 19px;
-  background: linear-gradient(145deg, rgba(113, 71, 255, .25), rgba(28, 24, 51, .7));
-  box-shadow: 0 0 25px rgba(129, 80, 255, .18), inset 0 0 18px rgba(129, 80, 255, .12);
-}
-
-.cv-brand-name { font-size: 23px; font-weight: 700; letter-spacing: -.7px; }
-.cv-brand-subtitle { margin-top: 2px; color: #aaa9c8; font-size: 12px; }
-
-.cv-projects-region { flex: 1; min-height: 0; overflow: auto; }
-.cv-projects-region > .v-card { background: transparent !important; color: inherit; }
 
 .cv-sidebar-footer {
-  padding: 12px;
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 0 0 auto;
+  padding: 10px 10px 12px;
   border-top: 1px solid rgba(153, 139, 201, .13);
+  background: rgba(12, 14, 23, .42);
 }
 
 .cv-footer-action {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
-  padding: 11px 12px;
-  border: 0;
-  border-radius: 9px;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #c5c4d8;
   background: transparent;
-  color: #d4d1e8;
+  font: inherit;
+  font-size: 12px;
   text-align: left;
   cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
 }
-.cv-footer-action:hover { background: rgba(144, 109, 255, .1); }
-.cv-footer-action .v-icon { color: #b59aff; }
-.cv-footer-shortcut { margin-left: auto; color: #8e8ba9; font-size: 11px; }
+
+.cv-footer-action > .v-icon {
+  flex: 0 0 21px;
+}
+
+.cv-footer-action > span:nth-child(2) {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cv-footer-action:hover {
+  color: #f4f0ff;
+  border-color: rgba(153, 139, 201, .16);
+  background: rgba(132, 105, 206, .12);
+}
+
+.cv-footer-action:focus-visible {
+  outline: 2px solid #b5a0ff;
+  outline-offset: 2px;
+}
+
+.cv-footer-shortcut {
+  flex: 0 0 auto;
+  margin-left: 4px;
+  color: #9692b2;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.theme-light .cv-sidebar-footer {
+  background: rgba(242, 239, 251, .7);
+}
+
+.theme-light .cv-footer-action {
+  color: #37324d;
+}
+
+.theme-light .cv-footer-action:hover {
+  color: #29213f;
+  background: rgba(133, 102, 221, .1);
+}
 
 .cv-main {
+  grid-area: main;
   position: relative;
   z-index: 1;
   min-width: 0;
@@ -628,8 +788,26 @@ onBeforeUnmount(() => {
 
 /* Light appearance overrides */
 .cv-shell.theme-light {
+  --cv-titlebar-background: #f0edf8;
   background: #f4f3fa;
   color: #242137;
+}
+
+.cv-shell.theme-light .custom-titlebar {
+  color: #29243c;
+}
+
+.cv-shell.theme-light .titlebar-subtitle {
+  color: #6f6b85;
+}
+
+.cv-shell.theme-light .window-controls button:hover {
+  background: rgba(95, 79, 140, .13);
+}
+
+.cv-shell.theme-light .window-controls button:last-child:hover {
+  background: #c42b1c;
+  color: #fff;
 }
 
 .theme-light .cv-ambient {
