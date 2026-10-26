@@ -420,38 +420,45 @@ async function closeWindow() {
 </script>
 
 <style>
-.cv-shell {
-  position: relative;
-  display: grid;
-  grid-template-columns: 292px minmax(0, 1fr);
-  grid-template-rows: 36px minmax(0, 1fr);
-  grid-template-areas:
-    "titlebar titlebar"
-    "sidebar main";
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-  isolation: isolate;
-  background: #0d0f17;
-  color: #f2f1fb;
-}
-
-.custom-titlebar {
-  grid-area: titlebar;
-  position: relative;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 36px;
-  min-width: 0;
-  padding-left: 14px;
-  background: #11111b;
-  color: #f4f0ff;
-  -webkit-app-region: drag;
-  user-select: none;
-}
+ .cv-shell {
+   position: relative;
+   display: grid;
+   grid-template-columns: 292px minmax(0, 1fr);
+   grid-template-rows: 36px minmax(0, 1fr);
+   grid-template-areas:
+     "titlebar titlebar"
+     "sidebar main";
+   width: 100%;
+   height: 100%;
+   min-height: 0;
+   overflow: hidden;
+   isolation: isolate;
+   background: #0d0f17;
+   color: #f2f1fb;
+  transition:
+    background-color 260ms ease,
+    color 260ms ease;
+ }
+ 
+ .custom-titlebar {
+   grid-area: titlebar;
+   position: relative;
+   z-index: 2;
+   display: flex;
+   align-items: center;
+   justify-content: space-between;
+   height: 36px;
+   min-width: 0;
+   padding-left: 14px;
+   background: #11111b;
+   color: #f4f0ff;
+   -webkit-app-region: drag;
+   user-select: none;
+  transition:
+    background-color 260ms ease,
+    color 260ms ease,
+    border-color 260ms ease;
+ }
 
 .titlebar-brand {
   display: flex;
@@ -469,6 +476,7 @@ async function closeWindow() {
 .titlebar-subtitle {
   color: #aaa9c8;
   font-size: 11px;
+  transition: color 260ms ease;
 }
 
 .window-controls {
@@ -489,6 +497,7 @@ async function closeWindow() {
   font-size: 16px;
   cursor: pointer;
   -webkit-app-region: no-drag;
+  transition: background-color 160ms ease, color 160ms ease;
 }
 
 .window-controls button:hover {
@@ -564,30 +573,27 @@ async function closeWindow() {
   z-index: 1;
   display: flex;
   flex-direction: column;
+  width: 100%;
+  height: 100%;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
   background: rgba(16, 18, 29, .84);
   border-right: 1px solid rgba(153, 139, 201, .13);
   backdrop-filter: blur(14px);
-}
-
-/* Let the project list take the available height so sidebar actions stay at the bottom. */
-.cv-projects-region {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  transition: background-color 260ms ease, border-color 260ms ease, color 260ms ease;
 }
 
 .cv-sidebar-footer {
-  margin-top: auto;
   display: flex;
   flex-direction: column;
   gap: 4px;
   flex: 0 0 auto;
+  margin-top: auto;
   padding: 10px 10px 12px;
   border-top: 1px solid rgba(153, 139, 201, .13);
   background: rgba(12, 14, 23, .42);
+  transition: background-color 260ms ease, border-color 260ms ease, color 260ms ease;
 }
 
 .cv-footer-action {
@@ -634,7 +640,6 @@ async function closeWindow() {
 
 .cv-footer-shortcut {
   flex: 0 0 auto;
-  margin-left: 4px;
   color: #9692b2;
   font-size: 11px;
   white-space: nowrap;
@@ -661,6 +666,7 @@ async function closeWindow() {
   min-height: 0;
   overflow: auto;
   padding: 16px 18px;
+  transition: background-color 260ms ease, color 260ms ease;
 }
 
 .cv-workspace {
@@ -673,6 +679,7 @@ async function closeWindow() {
   background: rgba(15, 18, 28, .76);
   box-shadow: 0 16px 44px rgba(0, 0, 0, .18), inset 0 1px rgba(255,255,255,.025);
   backdrop-filter: blur(16px);
+  transition: background-color 260ms ease, border-color 260ms ease, box-shadow 260ms ease, color 260ms ease;
 }
 
 .cv-workspace-header {
@@ -693,6 +700,7 @@ async function closeWindow() {
   color: #d6c9ff;
   border-radius: 13px;
   background: rgba(133, 102, 221, .16);
+  transition: background-color 260ms ease, color 260ms ease;
 }
 .cv-workspace-heading h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 21px; font-weight: 650; letter-spacing: -.4px; }
 .cv-workspace-heading p { margin-top: 3px; color: #a6abc7; font-size: 13px; }
@@ -715,6 +723,7 @@ async function closeWindow() {
   border-radius: 11px 11px 0 0;
   color: #b9bdd7;
   background: rgba(40, 43, 62, .45);
+  transition: background-color 260ms ease, border-color 260ms ease, color 260ms ease, box-shadow 260ms ease;
 }
 .cv-environment-tabs .v-tab--selected {
   color: #fff;
@@ -794,6 +803,7 @@ async function closeWindow() {
 }
 
 .cv-shell.theme-light .custom-titlebar {
+  background: var(--cv-titlebar-background);
   color: #29243c;
 }
 

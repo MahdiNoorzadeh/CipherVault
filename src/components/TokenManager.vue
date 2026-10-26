@@ -503,14 +503,14 @@ const loadIconOverrides = () => {
 const getIconForToken = (token) => {
   const key = normalizeServiceKey(token?.service);
   const custom = key ? iconOverrides.value[key] : null;
-  const url = typeof custom === 'string' ? custom : getServiceIconUrl(token?.service, token?.name);
+  const url = typeof custom === 'string' ? custom : getServiceIconUrl(token?.service);
   return url && !failedIconUrls.value.includes(url) ? url : null;
 };
 
 const previewIconUrl = computed(() => {
   const custom = String(tokenForm.value.iconUrl || '').trim();
   if (custom) return previewIconFailed.value ? null : validateCustomIconUrl(custom);
-  return getServiceIconUrl(tokenForm.value.service, tokenForm.value.name);
+  return getServiceIconUrl(tokenForm.value.service);
 });
 
 const resetPreviewIconError = () => {

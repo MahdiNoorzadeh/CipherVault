@@ -173,23 +173,26 @@ const normalize = (value) => String(value ?? '')
   .replace(/\.com$/i, '')
   .replace(/[^a-z0-9]+/g, '');
 
-export function getServiceSlug(service, name = '') {
-  const candidates = [service, name];
-  for (const candidate of candidates) {
-    const normalized = normalize(candidate);
-    if (!normalized) continue;
-    if (aliases[normalized]) return aliases[normalized];
-    const words = String(candidate).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-    for (const [alias, slug] of Object.entries(aliases)) {
-      if (alias.length > 2 && words.includes(alias.replace(/[^a-z0-9]+/g, ' '))) return slug;
-    }
-  }
-  const raw = normalize(service || name);
-  return raw.length >= 2 && raw.length <= 40 ? raw : null;
+// Normalize alias keys once so aliases containing spaces or punctuation (for
+// example, "Google Cloud" and "monday.com") work consistently.
+const normalizedAliases = new Map(
+  Object.entries(aliases).map(([alias, slug]) => [normalize(alias), slug])
+);
+
+/**
+ * Resolve an icon only when the Service field exactly matches a known alias.
+ * Never infer an icon from a token's display name or invent a Simple Icons
+ * slug for arbitrary/partially typed input; both behaviors cause false matches
+ * and repeated 404 requests while the user is typing.
+ */
+export function getServiceSlug(service) {
+  const normalized = normalize(service);
+  if (!normalized) return null;
+  return normalizedAliases.get(normalized) ?? null;
 }
 
-export function getServiceIconUrl(service, name = '') {
-  const slug = getServiceSlug(service, name);
+export function getServiceIconUrl(service) {
+  const slug = getServiceSlug(service);
   return slug ? `https://cdn.simpleicons.org/${encodeURIComponent(slug)}` : null;
 }
 
