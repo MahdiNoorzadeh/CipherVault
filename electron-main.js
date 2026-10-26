@@ -113,6 +113,37 @@ function handleIpc(channel, handler) {
   });
 }
 
+// Secure custom window controls
+handleIpc('window:minimize', () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+
+  mainWindow.minimize();
+  return true;
+});
+
+handleIpc('window:toggle-maximize', () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+
+  if (mainWindow.isMaximized()) {
+    mainWindow.unmaximize();
+  } else {
+    mainWindow.maximize();
+  }
+
+  return mainWindow.isMaximized();
+});
+
+handleIpc('window:close', () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+
+  mainWindow.close();
+  return true;
+});
+
+handleIpc('window:is-maximized', () => {
+  return Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isMaximized());
+});
+
 // Initialize Realm and master key on app startup
 app.whenReady().then(async () => {
   try {
@@ -178,6 +209,7 @@ function createWindow() {
   }
   
   const windowOptions = {
+    frame: false,
     width: 1200,
     height: 800,
     // Memory optimizations

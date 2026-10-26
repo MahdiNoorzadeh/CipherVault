@@ -24,6 +24,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Non-secret user preferences
   getKeyboardShortcuts: () => ipcRenderer.invoke('get-keyboard-shortcuts'),
-  saveKeyboardShortcuts: (shortcuts) => ipcRenderer.invoke('save-keyboard-shortcuts', shortcuts)
+  saveKeyboardShortcuts: (shortcuts) => ipcRenderer.invoke('save-keyboard-shortcuts', shortcuts),
+  // Window controls
+  minimizeWindow: () => ipcRenderer.invoke('window:minimize'),
+  toggleMaximizeWindow: () => ipcRenderer.invoke('window:toggle-maximize'),
+  closeWindow: () => ipcRenderer.invoke('window:close'),
+  isWindowMaximized: () => ipcRenderer.invoke('window:is-maximized')
 });
 
