@@ -128,6 +128,8 @@
               <span v-else class="token-value">{{ token.value }}</span>
               <v-btn
                 :icon="token.showValue ? 'mdi-eye-off' : 'mdi-eye'"
+                :aria-label="`${token.showValue ? 'Hide' : 'Reveal'} token ${token.name}`"
+                :title="`${token.showValue ? 'Hide' : 'Reveal'} token`"
                 size="x-small"
                 variant="text"
                 class="ml-2"
@@ -135,6 +137,8 @@
               ></v-btn>
               <v-btn
                 icon="mdi-content-copy"
+                :aria-label="`Copy token ${token.name}`"
+                title="Copy token"
                 size="x-small"
                 variant="text"
                 class="ml-1"
@@ -145,12 +149,16 @@
           <td>
             <v-btn
               icon="mdi-pencil"
+              :aria-label="`Edit token ${token.name}`"
+              title="Edit token"
               size="x-small"
               variant="text"
               @click="editToken(token)"
             ></v-btn>
             <v-btn
               icon="mdi-delete"
+              :aria-label="`Delete token ${token.name}`"
+              title="Delete token"
               size="x-small"
               variant="text"
               color="error"
@@ -328,7 +336,14 @@
     </v-dialog>
 
     <!-- Snackbar for notifications -->
-    <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000">
+    <v-snackbar
+      v-model="snackbar.show"
+      :color="snackbar.color"
+      timeout="3000"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    >
       {{ snackbar.message }}
     </v-snackbar>
   </div>
@@ -558,7 +573,7 @@ const saveServiceIconOverride = (service, rawUrl) => {
   if (!key) return;
   const validatedUrl = validateCustomIconUrl(rawUrl);
   if (rawUrl && !validatedUrl) {
-    throw new Error('Use an HTTPS image URL or upload a local image.');
+    throw new Error('Use a valid HTTPS image URL or upload a local image.');
   }
 
   const next = { ...iconOverrides.value };
@@ -699,7 +714,7 @@ const closeTokenDialog = () => {
 
 const saveToken = async () => {
   if (String(tokenForm.value.iconUrl || '').trim() && !validateCustomIconUrl(tokenForm.value.iconUrl)) {
-    showSnackbar('Use an HTTPS image URL or upload a local image.', 'error');
+    showSnackbar('Use a valid HTTPS image URL or upload a local image.', 'error');
     return;
   }
 
