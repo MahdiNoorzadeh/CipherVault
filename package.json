@@ -1,6 +1,6 @@
 {
   "name": "ciphervault",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A secure token management application for multiple projects and environments",
   "main": "electron-main.js",
   "type": "module",
