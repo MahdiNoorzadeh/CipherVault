@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <v-app :theme="theme">
     <div
       class="cv-shell"
@@ -138,7 +138,7 @@
               min-width="150"
               @click="startShortcutRecording(action.id)"
             >
-              {{ recordingAction === action.id ? 'Press keysâ€¦' : draftShortcuts[action.id] }}
+              {{ recordingAction === action.id ? 'Press keys…' : draftShortcuts[action.id] }}
             </v-btn>
           </div>
           <div v-if="hasShortcutConflict" class="text-error text-body-2 mt-2">
@@ -163,7 +163,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, defineAsyncComponent } from 'vue';
-import { DEFAULT_SHORTCUTS, normalizeShortcut, shortcutFromKeyboardEvent, validateShortcuts } from './main/keyboard-shortcuts.js';
+import { DEFAULT_SHORTCUTS, normalizeShortcut, shortcutFromKeyboardEvent, validateShortcuts } from './shared/keyboard-shortcuts.js';
 
 // Lazy load components for better memory usage
 const ProjectSidebar = defineAsyncComponent(() => import('./components/ProjectSidebar.vue'));

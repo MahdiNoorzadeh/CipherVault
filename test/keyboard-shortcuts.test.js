@@ -5,7 +5,7 @@ import {
   normalizeShortcut,
   shortcutFromKeyboardEvent,
   validateShortcuts
-} from '../src/main/keyboard-shortcuts.js';
+} from '../src/shared/keyboard-shortcuts.js';
 
 test('default shortcuts are valid and unique', () => {
   assert.deepEqual(validateShortcuts(DEFAULT_SHORTCUTS), DEFAULT_SHORTCUTS);

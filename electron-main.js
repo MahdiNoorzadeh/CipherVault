@@ -11,7 +11,7 @@ import { getMasterKey, setMasterKey } from './src/main/keytar-manager.js';
 import { encryptToken, decryptToken } from './src/main/crypto-utils.js';
 import { writeSecureLog, logIpcFailure } from './src/main/secure-logger.js';
 import { shouldClearClipboard } from './src/main/secure-log-format.js';
-import { DEFAULT_SHORTCUTS, validateShortcuts } from './src/main/keyboard-shortcuts.js';
+import { DEFAULT_SHORTCUTS, validateShortcuts } from './src/shared/keyboard-shortcuts.js';
 import { validateBatchDeleteIds } from './src/main/batch-delete.js';
 
 const __filename = fileURLToPath(import.meta.url);
