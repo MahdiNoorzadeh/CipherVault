@@ -33,6 +33,16 @@ This is a source-level review of the supplied archive. It is not a penetration t
 - Full build, native module behavior, packaged Electron launch, installer behavior, OS keyring access, and real clipboard behavior were not verified because dependencies and a packaged Windows runtime were not available.
 - `npm audit --omit=dev` was not run successfully in this environment; the prior audit report documents a registry `ECONNRESET`. Dependency vulnerability status remains unverified.
 
+## Follow-up source review changes
+
+- Removed the remaining production console message that exposed the absolute renderer path.
+- Added accessible names and titles to token reveal/copy/edit/delete icon buttons, and polite live-region semantics to snackbar feedback.
+- Aligned the CSP image policy with the documented HTTPS custom-icon URL feature. This allows HTTPS image requests only; it does not permit remote scripts or connections, but external image hosts can observe requests and associated network metadata.
+- Corrected README recovery guidance: do not delete the Realm database to troubleshoot keyring errors; back up the data directory and preserve the matching OS keyring key.
+- Updated build optimization notes to reflect esbuild and the actual renderer/main-process split.
+- Made `clean:cache` select the conventional electron-builder cache directory by OS.
+- Added `APP-REMAINING-CHECKLIST.md` with installed-build smoke tests and release hygiene.
+
 ## Remaining release blockers / follow-up
 
 1. Run `npm ci`, `npm run check`, `npm test`, `npm run test:crud`, `npm run build`, and `npm run electron:build` on the Windows development machine.

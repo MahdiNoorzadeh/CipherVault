@@ -13,7 +13,7 @@
     "electron:build": "vite build && electron-builder --win",
     "electron:build:all": "vite build && electron-builder",
     "clean:build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "clean:cache": "node -e \"const p=require('node:path');const f=require('node:fs');f.rmSync(p.join(process.env.LOCALAPPDATA||p.join(require('node:os').homedir(),'AppData','Local'),'electron-builder','Cache'),{recursive:true,force:true})\"",
+    "clean:cache": "node -e \"const p=require('node:path');const f=require('node:fs');const o=require('node:os');const root=process.env.LOCALAPPDATA||(process.platform==='darwin'?p.join(o.homedir(),'Library','Caches'):process.platform==='win32'?p.join(o.homedir(),'AppData','Local'):p.join(o.homedir(),'.cache'));f.rmSync(p.join(root,'electron-builder','Cache'),{recursive:true,force:true})\"",
     "test": "node --test --test-force-exit",
     "test:crud": "node --test --test-force-exit test/crud-integration.test.js",
     "check": "node --check electron-main.js && node --check preload.cjs && node --check src/main/crypto-utils.js && node --check src/main/ipc-validation.js && node --check src/main/keytar-manager.js && node --check src/main/realm-config.js && node --check src/main/secure-log-format.js && node --check src/main/secure-logger.js && node --check src/main/keyboard-shortcuts.js && node --check src/main/token-search.js && node --check src/main/batch-delete.js"

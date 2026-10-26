@@ -241,7 +241,6 @@ function createWindow() {
     });
   } else {
     const indexPath = join(__dirname, 'dist/index.html');
-    console.log('Production mode - Loading from:', indexPath);
     mainWindow.loadFile(indexPath);
   }
 }

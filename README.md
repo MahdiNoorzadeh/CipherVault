@@ -79,7 +79,9 @@ ciphervault/
 
 - All token values are encrypted using **AES-256-GCM** before being stored in the database
 - The master encryption key is stored securely in your OS keyring (Windows Credential Manager, macOS Keychain, or Linux Secret Service)
-- Tokens are only decrypted when needed for display or copying
+- Tokens are only decrypted for an explicit reveal, copy, or edit operation
+- Clipboard copies are cleared after a short timeout only if the clipboard still contains the exact value CipherVault copied
+- Service icons may load from HTTPS image URLs; remote image hosts can observe the request and may log network metadata. Use local image uploads if you prefer to avoid external icon requests
 
 ### Key Management
 
@@ -125,8 +127,7 @@ Toggle between Dark and Light themes using the theme button in the top-right cor
 - `npm run electron` - Run Electron with built app
 - `npm run electron:dev` - Run Electron with Vite dev server (development mode)
 - `npm run build` - Build the Vue app for production
-- `npm run electron:build` - Build the complete Windows Electron app
-- `npm run check` - Syntax-check main-process and security modules
+- `npm run electron:build` - Build the complete Electron app
 
 ### Building for Distribution
 
@@ -148,19 +149,22 @@ If you encounter issues with Keytar installation:
 
 See [SETUPGUIDE.md](./SETUPGUIDE.md) for detailed troubleshooting steps.
 
-### Realm Database Issues
+### Realm Database or Keyring Issues
 
-If the database becomes corrupted or you need to reset:
+**Do not delete `ciphervault.realm` as a first troubleshooting step.** The database contains your encrypted vault records, and the encryption key is stored separately in your operating-system keyring. If the key is missing, deleting or recreating the database will not recover your existing tokens.
 
-1. Close the application
-2. Navigate to the application data directory:
-   - **Windows**: `%APPDATA%\ciphervault\`
-   - **macOS**: `~/Library/Application Support/ciphervault/`
-   - **Linux**: `~/.config/ciphervault/`
-3. Delete the `ciphervault.realm` file
-4. Restart the application (a new database will be created)
+1. Close CipherVault.
+2. Make a backup copy of the entire application data directory before attempting recovery.
+3. Check that the operating-system keyring used by CipherVault is available and that you are signed into the same OS user account that created the vault.
+4. Restart CipherVault and review the displayed error. Do not generate a replacement key for an existing vault.
+5. If you intentionally want to permanently reset the vault, first confirm that you have a backup or no longer need the existing tokens. Only then, with CipherVault closed, move the database aside rather than immediately deleting it. Keep the backup until you have confirmed the new vault works.
 
-**Warning**: This will delete all your stored tokens!
+Typical application data locations are:
+- **Windows**: `%APPDATA%\ciphervault\` (confirm the actual `userData` directory for your installed build if it differs)
+- **macOS**: `~/Library/Application Support/ciphervault/`
+- **Linux**: `~/.config/ciphervault/`
+
+A database backup without the matching OS keyring key may not be sufficient to decrypt the stored tokens. Protect both the database backup and access to the original keyring accordingly.
 
 ## License
 
