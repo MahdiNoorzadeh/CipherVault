@@ -14,7 +14,8 @@
     "electron:build:all": "vite build && electron-builder",
     "clean:build": "rmdir /s /q dist 2>nul || rmdir dist 2>nul || true",
     "clean:cache": "rmdir /s /q \"%LOCALAPPDATA%\\electron-builder\\Cache\" 2>nul || echo Cache cleared",
-    "test": "node --test"
+    "test": "node --test --test-force-exit",
+    "test:crud": "node --test --test-force-exit test/crud-integration.test.js"
   },
   "keywords": [
     "token",
